@@ -90,16 +90,23 @@ def system_profile() -> dict[str, str]:
         package_manager = "yum"
     else:
         package_manager = "unknown"
-    if shutil.which("nmcli"):
+    def active_service(name: str) -> bool:
+        return bool(shutil.which("systemctl") and subprocess.run(
+            ["systemctl", "is-active", "--quiet", name], check=False
+        ).returncode == 0)
+
+    if active_service("NetworkManager.service"):
         network = "NetworkManager"
+    elif active_service("systemd-networkd.service"):
+        network = "systemd-networkd"
+    elif active_service("networking.service"):
+        network = "ifupdown"
+    elif init == "openrc" and shutil.which("rc-service"):
+        network = "OpenRC networking"
     elif Path("/etc/netplan").is_dir():
-        network = "netplan"
-    elif Path("/etc/network/interfaces").is_file():
-        network = "ifupdown"
-    elif Path("/etc/network/interfaces.d").is_dir():
-        network = "ifupdown"
-    elif Path("/etc/network").is_dir() and init == "openrc":
-        network = "Alpine networking"
+        network = "netplan（待确认后端）"
+    elif Path("/etc/network/interfaces").is_file() or Path("/etc/network/interfaces.d").is_dir():
+        network = "ifupdown（服务状态未知）"
     else:
         network = "未识别"
     return {
@@ -529,6 +536,201 @@ class TUI:
         print(f"证书路径：{cert_dir}\n续期方式：acme.sh cron\nNginx 配置备份：{backup}")
         return 0
 
+    @staticmethod
+    def network_service_active(name: str) -> bool:
+        return bool(shutil.which("systemctl") and subprocess.run(
+            ["systemctl", "is-active", "--quiet", name], check=False
+        ).returncode == 0)
+
+    def network_backend(self, iface: str) -> str:
+        """Detect the active manager for this interface, not merely installed commands."""
+        if shutil.which("nmcli"):
+            connection = subprocess.run(
+                ["nmcli", "-g", "GENERAL.CONNECTION", "device", "show", iface],
+                text=True,
+                capture_output=True,
+            ).stdout.strip()
+            if connection and connection != "--" and (
+                self.network_service_active("NetworkManager.service") or not shutil.which("systemctl")
+            ):
+                return "NetworkManager"
+        if self.network_service_active("systemd-networkd.service") and shutil.which("networkctl"):
+            return "systemd-networkd"
+        if self.network_service_active("networking.service") and Path("/etc/network/interfaces").is_file():
+            return "ifupdown"
+        if shutil.which("rc-service") and Path("/etc/network/interfaces").is_file():
+            status = subprocess.run(["rc-service", "networking", "status"], check=False)
+            if status.returncode == 0:
+                return "OpenRC networking"
+        if shutil.which("netplan") and Path("/etc/netplan").is_dir():
+            return "netplan"
+        return "未识别"
+
+    @staticmethod
+    def current_network_values(iface: str) -> tuple[str, str, list[str]]:
+        address = ""
+        gateway = ""
+        dns: list[str] = []
+        if shutil.which("ip"):
+            addr = subprocess.run(
+                ["ip", "-4", "-o", "addr", "show", "dev", iface, "scope", "global"],
+                text=True,
+                capture_output=True,
+            ).stdout
+            match = re.search(r"\binet\s+(\S+)", addr)
+            address = match.group(1) if match else ""
+            routes = subprocess.run(
+                ["ip", "-4", "route", "show", "default", "dev", iface],
+                text=True,
+                capture_output=True,
+            ).stdout
+            match = re.search(r"\bvia\s+(\S+)", routes)
+            gateway = match.group(1) if match else ""
+        resolv = Path("/etc/resolv.conf")
+        if resolv.is_file():
+            for line in resolv.read_text(encoding="utf-8", errors="ignore").splitlines():
+                match = re.match(r"\s*nameserver\s+(\S+)", line)
+                if match and match.group(1) not in {"127.0.0.53", "127.0.0.1", "::1"}:
+                    dns.append(match.group(1))
+        if not dns and shutil.which("resolvectl"):
+            result = subprocess.run(["resolvectl", "dns", iface], text=True, capture_output=True)
+            for item in result.stdout.split(":", 1)[-1].split():
+                if re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", item):
+                    dns.append(item)
+        return address, gateway, dns
+
+    @staticmethod
+    def network_prompt(current: tuple[str, str, list[str]]) -> tuple[str, str, list[str]] | None:
+        import ipaddress
+
+        old_address, old_gateway, old_dns = current
+        print("直接按 Enter 保留当前值；输入 - 可清空网关或 DNS。")
+        cidr = input(f"IPv4 地址/掩码 [{old_address or '必填，例如 10.0.1.30/24'}]: ").strip() or old_address
+        gateway_value = input(f"IPv4 网关 [{old_gateway or '无'}]: ").strip()
+        gateway = old_gateway if not gateway_value else ("" if gateway_value == "-" else gateway_value)
+        dns_value = input(f"DNS，多个用逗号分隔 [{','.join(old_dns) or '无'}]: ").strip()
+        dns_text = ",".join(old_dns) if not dns_value else ("" if dns_value == "-" else dns_value)
+        dns = [item.strip() for item in dns_text.split(",") if item.strip()]
+        try:
+            address = ipaddress.ip_interface(cidr)
+            if address.version != 4 or (gateway and ipaddress.ip_address(gateway).version != 4):
+                raise ValueError
+            for item in dns:
+                if ipaddress.ip_address(item).version != 4:
+                    raise ValueError
+        except (ValueError, TypeError):
+            print("IPv4 地址、网关或 DNS 格式不合法。")
+            return None
+        return cidr, gateway, dns
+
+    def apply_network_config(self, iface: str, backend: str, cidr: str, gateway: str, dns: list[str]) -> int:
+        if backend == "NetworkManager":
+            connection = subprocess.run(
+                ["nmcli", "-g", "GENERAL.CONNECTION", "device", "show", iface],
+                text=True,
+                capture_output=True,
+            ).stdout.strip()
+            if not connection or connection == "--":
+                print("没有找到该网卡对应的 NetworkManager 连接。")
+                return 1
+            command = ["nmcli", "connection", "modify", connection, "ipv4.method", "manual", "ipv4.addresses", cidr, "ipv4.gateway", gateway]
+            command.extend(["ipv4.dns", ",".join(dns)] if dns else ["ipv4.dns", "", "ipv4.ignore-auto-dns", "no"])
+            result = subprocess.run(command)
+            if result.returncode == 0:
+                print("配置已保存，正在重新激活 NetworkManager 连接；SSH 可能会断开。")
+                result = subprocess.run(["nmcli", "connection", "up", connection])
+            return result.returncode
+
+        if backend == "netplan":
+            if not shutil.which("netplan"):
+                print("未找到 netplan 命令，未修改。")
+                return 1
+            path = Path("/etc/netplan/99-yjl-tui.yaml")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            backup = self.backup_file(path)
+            content = f"network:\n  version: 2\n  ethernets:\n    {iface}:\n      dhcp4: false\n      addresses: [{cidr}]\n      accept-ra: true\n"
+            if gateway:
+                content += f"      routes:\n        - to: default\n          via: {gateway}\n"
+            if dns:
+                content += "      nameservers:\n        addresses: [" + ", ".join(dns) + "]\n"
+            path.write_text(content, encoding="utf-8")
+            result = subprocess.run(["netplan", "generate"])
+            if result.returncode == 0:
+                print("配置校验通过，正在应用 netplan；SSH 可能会断开。")
+                result = subprocess.run(["netplan", "apply"])
+            if result.returncode:
+                if backup:
+                    shutil.copy2(backup, path)
+                else:
+                    path.unlink(missing_ok=True)
+                print("网络配置失败，已恢复原配置。")
+            else:
+                print(f"配置已写入：{path}" + (f"；备份：{backup}" if backup else ""))
+            return result.returncode
+
+        if backend == "systemd-networkd":
+            path = Path("/etc/systemd/network") / f"20-yjl-tui-{safe_name(iface)}.network"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            backup = self.backup_file(path)
+            content = f"[Match]\nName={iface}\n\n[Network]\nAddress={cidr}\nIPv6AcceptRA=yes\n"
+            if gateway:
+                content += f"Gateway={gateway}\n"
+            for item in dns:
+                content += f"DNS={item}\n"
+            path.write_text(content, encoding="utf-8")
+            result = subprocess.run(["networkctl", "reload"])
+            if result.returncode == 0:
+                print("配置已保存，正在重新配置网卡；SSH 可能会断开。")
+                result = subprocess.run(["networkctl", "reconfigure", iface])
+            if result.returncode:
+                if backup:
+                    shutil.copy2(backup, path)
+                else:
+                    path.unlink(missing_ok=True)
+                print("网络配置失败，已恢复原配置。")
+            else:
+                print(f"配置已写入：{path}" + (f"；备份：{backup}" if backup else ""))
+            return result.returncode
+
+        if backend in {"ifupdown", "OpenRC networking"}:
+            path = Path("/etc/network/interfaces.d") / f"yjl-tui-{safe_name(iface)}"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            backup = self.backup_file(path)
+            import ipaddress
+            netmask = str(ipaddress.ip_interface(cidr).network.netmask)
+            content = f"auto {iface}\niface {iface} inet static\n    address {cidr.split('/', 1)[0]}\n    netmask {netmask}\n"
+            if gateway:
+                content += f"    gateway {gateway}\n"
+            if dns:
+                content += f"    dns-nameservers {' '.join(dns)}\n"
+            path.write_text(content, encoding="utf-8")
+            main = Path("/etc/network/interfaces")
+            main_backup = self.backup_file(main)
+            original = main.read_text(encoding="utf-8", errors="ignore") if main.exists() else ""
+            source_line = "source /etc/network/interfaces.d/*"
+            if source_line not in original:
+                main.write_text(original.rstrip() + "\n\n" + source_line + "\n", encoding="utf-8")
+            if backend == "OpenRC networking":
+                result = subprocess.run(["rc-service", "networking", "restart"])
+            elif shutil.which("systemctl"):
+                result = subprocess.run(["systemctl", "restart", "networking"], check=False)
+            else:
+                result = subprocess.CompletedProcess([], 0)
+            if result.returncode:
+                if backup:
+                    shutil.copy2(backup, path)
+                else:
+                    path.unlink(missing_ok=True)
+                if main_backup:
+                    shutil.copy2(main_backup, main)
+                print("网络服务重启失败，已恢复原配置。")
+            else:
+                print(f"配置已写入：{path}" + (f"；备份：{backup}" if backup else ""))
+            return result.returncode
+
+        print("没有识别出当前网卡的网络管理组件，未修改，避免误写错误配置。")
+        return 1
+
     def network_manage(self, log: Path) -> int:
         if not self.root_required():
             return 1
@@ -543,83 +745,23 @@ class TUI:
         if not raw.isdigit() or not 0 < int(raw) <= len(names):
             return 2
         iface = names[int(raw) - 1]
+        backend = self.network_backend(iface)
+        current = self.current_network_values(iface)
+        print(f"\n检测到网络管理组件：{backend}")
+        print(f"当前 IPv4：{current[0] or '未检测到'}")
+        print(f"当前网关：{current[1] or '未检测到'}")
+        print(f"当前 DNS：{', '.join(current[2]) or '未检测到'}")
         subprocess.run(["ip", "-brief", "address", "show", "dev", iface])
-        print("\n1. 查看当前配置\n2. 使用 NetworkManager 修改 IPv4\n3. 生成 netplan 配置\n4. 生成 ifupdown/Alpine 配置")
+        print("\n1. 查看当前配置\n2. 修改 IPv4、网关和 DNS（自动使用上述组件）")
         choice = input("选择 [1]: ").strip() or "1"
         if choice == "1":
             return 0
-        import ipaddress
-        cidr = input("IPv4 地址/掩码（例如 192.0.2.10/24）：").strip()
-        gateway = input("IPv4 网关（留空不改）：").strip()
-        dns = input("DNS，多个用逗号分隔（留空不改）：").strip()
-        try:
-            address = ipaddress.ip_interface(cidr)
-            if address.version != 4 or (gateway and ipaddress.ip_address(gateway).version != 4):
-                raise ValueError
-            if dns:
-                for item in dns.split(","):
-                    if ipaddress.ip_address(item.strip()).version != 4:
-                        raise ValueError
-        except ValueError:
-            print("IPv4 地址、网关或 DNS 格式不合法。")
+        if choice != "2":
             return 2
-        if choice == "2" and shutil.which("nmcli"):
-            connection = subprocess.run(["nmcli", "-g", "GENERAL.CONNECTION", "device", "show", iface], text=True, capture_output=True).stdout.strip()
-            if not connection or connection == "--":
-                print("NetworkManager 没有找到该网卡的连接配置。")
-                return 1
-            cmd = ["nmcli", "connection", "modify", connection, "ipv4.method", "manual", "ipv4.addresses", cidr]
-            if gateway:
-                cmd.extend(["ipv4.gateway", gateway])
-            if dns:
-                cmd.extend(["ipv4.dns", ",".join(x.strip() for x in dns.split(","))])
-            result = subprocess.run(cmd)
-            if result.returncode == 0:
-                print("配置已保存。即将重新激活连接，SSH 可能会断开。")
-                result = subprocess.run(["nmcli", "connection", "up", connection])
-            return result.returncode
-        if choice == "3":
-            path = Path("/etc/netplan/99-yjl-tui.yaml")
-            if not shutil.which("netplan"):
-                print("当前系统没有 netplan 命令，未修改。")
-                return 1
-            path.parent.mkdir(parents=True, exist_ok=True)
-            backup = self.backup_file(path)
-            nameservers = "[" + ", ".join(d.strip() for d in dns.split(",") if d.strip()) + "]" if dns else "[]"
-            content = f"network:\n  version: 2\n  ethernets:\n    {iface}:\n      dhcp4: false\n      addresses: [{cidr}]\n"
-            if gateway:
-                content += f"      routes:\n        - to: default\n          via: {gateway}\n"
-            if dns:
-                content += f"      nameservers:\n        addresses: {nameservers}\n"
-            path.write_text(content, encoding="utf-8")
-            result = subprocess.run(["netplan", "generate"])
-            if result.returncode == 0:
-                result = subprocess.run(["netplan", "apply"])
-            print(f"配置已写入：{path}" + (f"；旧文件备份：{backup}" if backup else ""))
-            return result.returncode
-        if choice == "4":
-            path = Path("/etc/network/interfaces.d") / f"yjl-tui-{iface}"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            backup = self.backup_file(path)
-            netmask = str(address.network.netmask)
-            path.write_text(
-                f"auto {iface}\niface {iface} inet static\n    address {address.ip}\n    netmask {netmask}\n"
-                + (f"    gateway {gateway}\n" if gateway else "")
-                + (f"    dns-nameservers {', '.join(x.strip() for x in dns.split(','))}\n" if dns else ""),
-                encoding="utf-8",
-            )
-            print(f"配置已写入：{path}" + (f"；旧文件备份：{backup}" if backup else ""))
-            if system_profile()["初始化"] == "openrc":
-                result = subprocess.run(["rc-service", "networking", "restart"])
-            elif shutil.which("systemctl"):
-                result = subprocess.run(["systemctl", "restart", "networking"], check=False)
-            else:
-                print("没有识别到可用的网络服务管理命令，配置已保存但未重启网络。")
-                result = subprocess.CompletedProcess([], 0)
-            print("DNS 请按当前发行版的 resolvconf/NetworkManager 方式单独确认。")
-            return result.returncode
-        print("选择的网络管理方式不可用，未修改。")
-        return 1
+        values = self.network_prompt(current)
+        if values is None:
+            return 2
+        return self.apply_network_config(iface, backend, *values)
 
     def grub_manage(self, log: Path) -> int:
         if not self.root_required():
@@ -996,11 +1138,6 @@ done'''
                 print("没有找到本地 vps.sh。")
             elif not password:
                 print("密码为空，已取消执行。")
-        elif action["id"] == "legacy_yjl":
-            path = find_local("yjl.sh")
-            rc = self.interactive(["bash", str(path)], log) if path else 1
-            if not path:
-                print("当前工作区没有找到 yjl.sh，此入口暂不可用。")
         else:
             cmd = self.builtin(action["id"])
             rc = self.interactive(cmd, log) if cmd else 1
@@ -1082,7 +1219,7 @@ def main() -> int:
         return 0
     if "--check" in sys.argv:
         print(f"配置 OK: {CONFIG}")
-        for name in ("vps.sh", "vps_test.sh", "yjl.sh"):
+        for name in ("vps.sh", "vps_test.sh"):
             print(f"{name}: {find_local(name) or '未找到'}")
         return 0
     if not sys.stdin.isatty() or not sys.stdout.isatty():

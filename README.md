@@ -53,8 +53,9 @@ sing-box 以 -L 执行；Check.Place 以 -I 执行；SSH 动作隐藏读取密�
 
 在线安装分类还包含 3x-ui、bin456789 DD 重装、233boy sing-box、233boy Xray、宝塔、1Panel
 和 CasaOS。网络与内核分类包含官方内核管理、fscarmen sing-box 菜单中的完整 TCP Brutal /
-内核工具入口、网卡配置和 IPv4/IPv6 出站优先级；TCP 入口的实际来源是 fscarmen 菜单调用的
-Linux-NetSpeed `tcp.sh`，菜单使用“（fsc）”标记来源。
+内核工具入口、网卡配置和 IPv4/IPv6 出站优先级；网卡管理会自动检测 NetworkManager、
+netplan、systemd-networkd、ifupdown 或 Alpine OpenRC，不要求用户判断后台服务；TCP 入口的
+实际来源是 fscarmen 菜单调用的 Linux-NetSpeed `tcp.sh`，菜单使用“（fsc）”标记来源。
 
 服务器配置分类包含 apt/apk 系统更新、SSH、Swap 和小硬盘日志策略。高级工具包含 Nginx
 SSL 证书管理、WebDAV、nft-forward、port-traffic-dog 和 GRUB 管理。SSL 使用 acme.sh，

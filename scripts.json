@@ -47,7 +47,6 @@
     {"id":"nft_forward","category":"advanced","title":"nftables 端口转发","description":"下载 xjetry/nft-forward 官方安装脚本并进入原菜单；会修改防火墙和转发规则。","kind":"online","url":"https://raw.githubusercontent.com/xjetry/nft-forward/main/install.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"port_traffic_dog","category":"advanced","title":"端口流量监控狗","description":"下载 duya07/port-traffic-dog 官方脚本并进入管理菜单；安装前确认运行时和监听端口。","kind":"online","url":"https://raw.githubusercontent.com/duya07/port-traffic-dog/main/port-traffic-dog.sh","interpreter":"bash","args":[],"risk":"warn","needs_root":true},
     {"id":"grub_manage","category":"advanced","title":"GRUB 启动管理","description":"备份并修改 GRUB timeout、默认启动项和内核参数，校验后生成 grub.cfg。","kind":"builtin","risk":"danger","needs_root":true},
-    {"id":"custom_script","category":"advanced","title":"自定义在线脚本","description":"输入一个 http(s) 地址，下载后先做语法检查，再在终端中执行。","kind":"custom","risk":"danger","needs_root":false},
-    {"id":"legacy_yjl","category":"advanced","title":"旧版 YJL 大面板","description":"运行原来的 yjl.sh；新 TUI 不修改它，仅作为兼容入口。","kind":"legacy","risk":"danger","needs_root":true}
+    {"id":"custom_script","category":"advanced","title":"自定义在线脚本","description":"输入一个 http(s) 地址，下载后先做语法检查，再在终端中执行。","kind":"custom","risk":"danger","needs_root":false}
   ]
 }
