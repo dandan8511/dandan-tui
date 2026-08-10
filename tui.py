@@ -1134,8 +1134,19 @@ class TUI:
 
     @staticmethod
     def syntax_ok(path: Path, interpreter: str) -> bool:
-        checker = "sh" if interpreter == "sh" else "bash"
-        result = subprocess.run([checker, "-n", str(path)], text=True, capture_output=True)
+        if interpreter in {"python", "python3"}:
+            checker = shutil.which(interpreter)
+            if not checker:
+                print(f"缺少 {interpreter}，已停止执行。")
+                return False
+            check_code = (
+                "import ast, pathlib, sys; "
+                "ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'), filename=sys.argv[1])"
+            )
+            result = subprocess.run([checker, "-c", check_code, str(path)], text=True, capture_output=True)
+        else:
+            checker = "sh" if interpreter == "sh" else "bash"
+            result = subprocess.run([checker, "-n", str(path)], text=True, capture_output=True)
         if result.returncode:
             print("脚本语法检查失败，已停止执行：")
             print(result.stderr.strip())

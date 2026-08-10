@@ -56,6 +56,11 @@ sing-box 以 -L 执行；Check.Place 以 -I 执行；SSH 动作隐藏读取密�
 `tcp_profiles.json` 的多套本地方案，写入前备份并立即执行 `sysctl --system`；BBR2、FQ_PIE、CAKE
 等当前内核不支持时会直接报告，不会假报成功。内核安装、DD、检测、BBRplus 和 Lotserver
 继续通过带 `(fsc)` 标记的在线入口执行；完整 tcp.sh 原菜单也保留在分类底部。
+测速工具分类包含 7 个入口：`speedtest.py` 做单次延迟/下载/上传测速；YABS 完整模式测试
+CPU、磁盘、Geekbench 和 iperf3，轻量模式跳过磁盘与 Geekbench；Teddysun `bench.sh`
+测试下载、I/O 和多个地区节点；ECS 进入 IP 质量、三网回程、流媒体和测速菜单；Check.Place
+做 IP 质量检测；内置 SNI 工具只测 443 TLS 握手延迟。测速都需要联网，YABS 和 bench.sh
+可能消耗较多流量，菜单中的普通修改确认不会阻止安全检测。
 网络与内核分类包含网卡配置和 IPv4/IPv6 出站优先级；网卡管理会自动检测 NetworkManager、
 netplan、systemd-networkd、ifupdown 或 Alpine OpenRC，不要求用户判断后台服务。
 
