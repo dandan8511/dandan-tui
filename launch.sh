@@ -79,14 +79,18 @@ download tui.py
 download scripts.json
 download tcp_profiles.json
 download scripts/install-tcp-brutal.sh
+download scripts/fscarmen-vless-ws-tls.sh
+download scripts/fscarmen-sing-box-v1.3.20.sh
 chmod 700 "${TEMP_DIR}/run.sh"
-chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/install-tcp-brutal.sh"
-chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh"
+chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/fscarmen-sing-box-v1.3.20.sh"
+chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${TEMP_DIR}/scripts/fscarmen-vless-ws-tls.sh"
 mv -f -- "${TEMP_DIR}/run.sh" "${CACHE_ROOT}/run.sh"
 mv -f -- "${TEMP_DIR}/tui.py" "${CACHE_ROOT}/tui.py"
 mv -f -- "${TEMP_DIR}/scripts.json" "${CACHE_ROOT}/scripts.json"
 mv -f -- "${TEMP_DIR}/tcp_profiles.json" "${CACHE_ROOT}/tcp_profiles.json"
 mkdir -p -- "${CACHE_ROOT}/scripts"
 mv -f -- "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${CACHE_ROOT}/scripts/install-tcp-brutal.sh"
+mv -f -- "${TEMP_DIR}/scripts/fscarmen-vless-ws-tls.sh" "${CACHE_ROOT}/scripts/fscarmen-vless-ws-tls.sh"
+mv -f -- "${TEMP_DIR}/scripts/fscarmen-sing-box-v1.3.20.sh" "${CACHE_ROOT}/scripts/fscarmen-sing-box-v1.3.20.sh"
 
 exec bash "${CACHE_ROOT}/run.sh" "$@"

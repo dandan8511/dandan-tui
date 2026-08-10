@@ -57,6 +57,16 @@ sing-box 以 -L 执行；Check.Place 以 -I 执行；SSH 动作隐藏读取密�
 `/etc/mmw`，服务名为 `mmw.service`，默认端口 8080；此入口不会执行 Docker 安装。
 该官方安装脚本当前面向 Debian/Ubuntu + systemd，Alpine 不会通过这个入口强行安装；Alpine
 如需使用应按上游 release 二进制和 OpenRC 方式单独配置。
+
+`VLESS + WS + TLS（fsr）` 是独立分类，调用仓库内的 fscarmen/sing-box 本地快照
+`scripts/fscarmen-sing-box-v1.3.20.sh`。快照来源为 fscarmen/sing-box `main` 的
+`e1f08cff8a39ec0ac595d549e886b0ac88514b68`（上游脚本版本 `v1.3.20 (2026.08.07)`，导入前
+SHA-256：`0fbccc6f4ac6a0b2fa5c7cf90130904eae3f322e2451062dd93d6b6f92d0287f`）。本地启动器只添加
+`--yjl-tui-vless-ws-tls` 参数，等同上游首次安装菜单的 `2`（订阅 + Argo）再选择协议 `i`
+（vless + ws + tls），但不跳过端口、Argo、CDN、UUID、节点名等上游交互。TUI 启动不再下载这个
+入口脚本本身；但该安装流程仍会在线安装系统依赖、sing-box、cloudflared、Nginx/证书和订阅模板，
+所以它是“脚本入口本地化”，不是包含所有二进制与系统包的完全离线安装包。
+
 TCP调优分类现在按上游 Linux-NetSpeed v100.0.4.2 逐项列出
 `0/1/2/3/5/8/9/10/60/11-25/27/99` 对应动作。`11-18、21-24、27` 使用仓库内
 `tcp_profiles.json` 的多套本地方案，写入前备份并立即执行 `sysctl --system`；BBR2、FQ_PIE、CAKE

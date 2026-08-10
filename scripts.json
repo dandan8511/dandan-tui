@@ -2,6 +2,7 @@
   "categories": [
     {"id": "overview", "title": "总览与巡检"},
     {"id": "install", "title": "一键在线安装"},
+    {"id": "fscarmen_vless", "title": "VLESS + WS + TLS（fsr）"},
     {"id": "speed_test", "title": "测速工具"},
     {"id": "tcp_tuning", "title": "TCP调优"},
     {"id": "nodeseek", "title": "Nodeseek论坛"},
@@ -31,6 +32,8 @@
     {"id":"bt_panel","category":"install","title":"宝塔面板（bt.cn）","description":"下载宝塔官方安装器；会安装 Web 服务、修改端口和防火墙，请先确认磁盘与端口。","kind":"online","url":"https://download.bt.cn/install/install_panel.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"onepanel","category":"install","title":"1Panel 面板","description":"下载 1Panel 官方 v2 安装器；通常需要 Docker 和较多磁盘空间。","kind":"online","url":"https://resource.fit2cloud.com/1panel/package/v2/quick_start.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"casaos","category":"install","title":"CasaOS 面板","description":"下载 CasaOS 官方安装器；会安装或调整 Docker、Web 服务和端口。","kind":"online","url":"https://get.casaos.io","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
+
+    {"id":"fscarmen_vless_ws_tls","category":"fscarmen_vless","title":"安装 VLESS + WS + TLS（fsr 本地快照）","description":"调用仓库内固定的 fscarmen/sing-box v1.3.20 快照，复现上游主菜单 2（订阅 + Argo）并预选 i（vless + ws + tls）；保留端口、Argo、CDN、UUID、节点名等原始交互。会写入 /etc/sing-box、服务、Nginx 和防火墙。脚本入口本地化，但依赖、sing-box、cloudflared、证书和订阅模板仍需联网。","kind":"local_script","path":"scripts/fscarmen-vless-ws-tls.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
 
     {"id":"speedtest_cli","category":"speed_test","title":"1. Speedtest CLI 单次测速","description":"使用 speedtest-cli 兼容脚本测试当前延迟、下载和上传速度；需要 Python 3 和外网，结果受测速服务器影响。","kind":"online","url":"https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py","interpreter":"python3","args":["--simple"],"risk":"warn","needs_root":false},
     {"id":"yabs_full","category":"speed_test","title":"2. YABS 综合性能测速","description":"执行 YABS 综合测试：CPU、磁盘 I/O、Geekbench 和 iperf3 网络；在线下载测试资源，不需要 root，可能产生较多流量。","kind":"online","url":"https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh","interpreter":"bash","args":["-r"],"risk":"warn","needs_root":false},
