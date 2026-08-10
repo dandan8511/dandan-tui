@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 REF="${YJL_TUI_REF:-main}"
 BASE_URL="https://raw.githubusercontent.com/dandan8511/dandan-tui/${REF}"
+CACHE_BUSTER="${YJL_TUI_CACHE_BUSTER:-$(date +%s)}"
 CACHE_ROOT="${XDG_CACHE_HOME:-${HOME}/.cache}/dandan-tui"
 mkdir -p -- "$CACHE_ROOT"
 TEMP_DIR="$(mktemp -d "${CACHE_ROOT}.download.XXXXXX")"
@@ -16,9 +17,9 @@ download() {
     local name="$1"
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL --retry 3 --connect-timeout 15 --max-time 180 \
-            "${BASE_URL}/${name}" -o "${TEMP_DIR}/${name}"
+            "${BASE_URL}/${name}?v=${CACHE_BUSTER}" -o "${TEMP_DIR}/${name}"
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO "${TEMP_DIR}/${name}" "${BASE_URL}/${name}"
+        wget -qO "${TEMP_DIR}/${name}" "${BASE_URL}/${name}?v=${CACHE_BUSTER}"
     else
         printf '%s\n' '错误：需要 curl 或 wget。' >&2
         exit 127

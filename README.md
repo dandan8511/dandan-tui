@@ -12,11 +12,11 @@ GitHub 仓库地址：
 在 Debian 11/12/13、主流 Ubuntu 或 Alpine VPS 上，先以 root 或具有 sudo 权限的用户登录，
 然后执行下面的一条命令即可启动最新 TUI：
 
-    bash <(curl -fsSL https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh)
+    bash <(curl -fsSL "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 
 如果系统只有 wget：
 
-    bash <(wget -qO- https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh)
+    bash <(wget -qO- "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 
 `launch.sh` 会从 GitHub 下载当前 `main` 分支的 `run.sh`、`tui.py` 和 `scripts.json`，
 保存到 VPS 的 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动 TUI。每次执行都会重新
@@ -25,12 +25,12 @@ GitHub 仓库地址：
 root 用户推荐这样启动：
 
     sudo -i
-    bash <(curl -fsSL https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh)
+    bash <(curl -fsSL "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 
 直接执行 GitHub `main` 分支代表信任仓库当前内容。如果希望固定到某一次提交，可以指定
 提交 SHA，而不是跟随 `main`：
 
-    YJL_TUI_REF=提交SHA bash <(curl -fsSL https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh)
+    YJL_TUI_REF=提交SHA bash <(curl -fsSL "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 
 TUI 运行需要 `bash` 和 `python3`；在线安装、证书和部分检测功能还需要 `curl`、`wget`、
 `openssl`、`iproute2` 或系统对应的工具。涉及内核、网络、GRUB、Nginx、证书和面板安装的
