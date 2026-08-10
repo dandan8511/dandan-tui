@@ -64,6 +64,71 @@ class ConfigSmokeTests(unittest.TestCase):
         for protocol in ("ShadowTLS", "Shadowsocks", "Trojan", "VMess + WS", "VLESS + WS + TLS", "H2 + Reality", "gRPC + Reality"):
             self.assertIn(protocol, actions[0]["description"])
 
+    def test_tcp_brutal_repair_only_targets_supported_nodes(self):
+        jsonc = '''{
+  "inbounds": [{
+    "type": "vless",
+    "tag": "jp vless-ws-tls",
+    "transport": {"type": "ws"},
+    "multiplex": {"enabled": false}
+  }]
+}'''
+        patched, changed = tui.TUI._tcp_brutal_patch_jsonc_inbound(jsonc)
+        self.assertTrue(changed)
+        self.assertIn('"enabled": true', patched)
+        self.assertIn('"brutal": {', patched)
+
+        singbox = {
+            "outbounds": [
+                {"type": "vless", "tag": "jp vless-ws-tls", "transport": {"type": "ws"}, "multiplex": {"enabled": False}},
+                {"type": "vless", "tag": "jp xtls-reality", "flow": "xtls-rprx-vision", "multiplex": {"enabled": False}},
+                {"type": "vless", "tag": "jp h2-reality", "transport": {"type": "http"}},
+            ]
+        }
+        patched, changed = tui.TUI._tcp_brutal_patch_singbox_subscription(
+            json.dumps(singbox), {"jp vless-ws-tls", "jp xtls-reality", "jp h2-reality"}
+        )
+        self.assertTrue(changed)
+        repaired = json.loads(patched)
+        self.assertTrue(repaired["outbounds"][0]["multiplex"]["brutal"]["enabled"])
+        self.assertFalse(repaired["outbounds"][1]["multiplex"]["enabled"])
+        self.assertTrue(repaired["outbounds"][2]["multiplex"]["brutal"]["enabled"])
+
+        yaml = '''- name: jp vless-ws-tls
+  type: vless
+  network: ws
+  smux:
+    enabled: false
+  brutal-opts:
+    enabled: false
+- name: jp xtls-reality
+  type: vless
+  network: tcp
+  flow: xtls-rprx-vision
+  smux:
+    enabled: false
+  brutal-opts:
+    enabled: false
+'''
+        patched, changed = tui.TUI._tcp_brutal_patch_yaml_subscription(yaml, {"jp vless-ws-tls", "jp xtls-reality"})
+        self.assertTrue(changed)
+        self.assertIn("jp vless-ws-tls\n  type: vless\n  network: ws\n  smux:\n    enabled: true", patched)
+        self.assertIn("jp xtls-reality\n  type: vless\n  network: tcp\n  flow: xtls-rprx-vision\n  smux:\n    enabled: false", patched)
+
+        missing = '''proxies:
+  - name: jp vless-ws-tls
+    type: vless
+    network: ws
+    smux:
+      enabled: true
+rules:
+  - DOMAIN-SUFFIX,example.com,DIRECT
+'''
+        patched, changed = tui.TUI._tcp_brutal_patch_yaml_subscription(missing, {"jp vless-ws-tls"})
+        self.assertTrue(changed)
+        self.assertIn("    brutal-opts:\n      enabled: true", patched)
+        self.assertIn("rules:\n  - DOMAIN-SUFFIX,example.com,DIRECT", patched)
+
 
 class LocalBehaviorTests(unittest.TestCase):
     def test_shell_and_python_syntax(self):

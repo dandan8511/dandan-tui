@@ -68,6 +68,13 @@ TCP调优分类现在按上游 Linux-NetSpeed v100.0.4.2 逐项列出
 VMess + WS、VLESS + WS + TLS、H2 + Reality、gRPC + Reality；Hysteria2、TUIC、XTLS + Reality、
 AnyTLS 和 naive 不支持。这里的“本地”只表示安装脚本本身在仓库内，DKMS 模块源码和发行版依赖
 仍需要在线下载；Linux 容器若没有匹配 headers 或 `CAP_SYS_MODULE`，安装器会报告失败，不能绕过宿主机限制。
+“安装并修复 TCP Brutal（本地）”在模块成功加载后，会修复旧的 fscarmen split-config 安装：
+只更新上述支持协议的入站 `multiplex.brutal`，以及本机节点 tag 对应的 `proxies`、`clash`、
+`clash2`、`clash3`、`sing-box` 订阅。所有变更先备份到
+`/etc/sing-box/tcp-brutal-backup-时间戳/`，再用正在使用的 sing-box 二进制检查配置并热加载。
+已安装模块时可直接选择第二项“修复已有配置和订阅中的 TCP Brutal”。Shadowrocket、v2rayN、
+Throne 等 Base64/URI 订阅没有统一的 Brutal URL 参数，修复器不会伪造或破坏这些链接；应使用
+Clash/Sing-box 结构化订阅，或通过 fscarmen 原脚本完整重新导出。
 测速工具分类包含 7 个入口：`speedtest.py` 做单次延迟/下载/上传测速；YABS 完整模式测试
 CPU、磁盘、Geekbench 和 iperf3，轻量模式跳过磁盘与 Geekbench；Teddysun `bench.sh`
 测试下载、I/O 和多个地区节点；ECS 进入 IP 质量、三网回程、流媒体和测速菜单；Check.Place
