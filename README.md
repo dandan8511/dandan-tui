@@ -18,7 +18,7 @@ GitHub 仓库地址：
 
     bash <(wget -qO- "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 
-`launch.sh` 会从 GitHub 下载当前 `main` 分支的 `run.sh`、`tui.py` 和 `scripts.json`，
+`launch.sh` 会从 GitHub 下载当前 `main` 分支的 `run.sh`、`tui.py`、`scripts.json` 和 `tcp-tuning.conf`，
 保存到 VPS 的 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动 TUI。每次执行都会重新
 下载最新文件，不需要先 git clone，也不会把整个仓库下载到 VPS。
 
@@ -46,16 +46,15 @@ TUI 运行需要 `bash` 和 `python3`；在线安装、证书和部分检测功�
     ./run.sh --check
     ./run.sh --list
 
-现有脚本的对应关系：旧版 dandan VPS 自动发现仓库中的 vps.sh，不复制、不修改原脚本；
 Swap 512MB 内置动作先检查活动 Swap，有则跳过；fnm 动作安装并切换 Node 22.11.0；
 sing-box 以 -L 执行；Check.Place 以 -I 执行；SSH 动作隐藏读取密码，修改前备份，
 用 sshd -t 校验，重载后检查端口，失败回滚。
 
 在线安装分类还包含 3x-ui、bin456789 DD 重装、233boy sing-box、233boy Xray、宝塔、1Panel
-和 CasaOS。网络与内核分类包含官方内核管理、fscarmen sing-box 菜单中的完整 TCP Brutal /
-内核工具入口、网卡配置和 IPv4/IPv6 出站优先级；网卡管理会自动检测 NetworkManager、
-netplan、systemd-networkd、ifupdown 或 Alpine OpenRC，不要求用户判断后台服务；TCP 入口的
-实际来源是 fscarmen 菜单调用的 Linux-NetSpeed `tcp.sh`，菜单使用“（fsc）”标记来源。
+和 CasaOS。TCP/内核调优分类包含本地 `tcp-tuning.conf` 参数、TCP 状态、官方内核管理和
+完整 tcp.sh（fsc）入口；本地 sysctl/BBR 参数已经随仓库下载，内核和外部依赖仍在线安装。
+网络与内核分类包含网卡配置和 IPv4/IPv6 出站优先级；网卡管理会自动检测 NetworkManager、
+netplan、systemd-networkd、ifupdown 或 Alpine OpenRC，不要求用户判断后台服务。
 
 服务器配置分类包含 apt/apk 系统更新、SSH、Swap 和小硬盘日志策略。高级工具包含 Nginx
 SSL 证书管理、WebDAV、nft-forward、port-traffic-dog 和 GRUB 管理。SSL 使用 acme.sh，
@@ -72,7 +71,7 @@ TUI 日志；它是连通性/握手耗时参考，不等同于 HTTP 下载速度
 
 在线脚本会先下载到缓存文件，再做 bash -n 或 sh -n 语法检查，之后才执行；不会使用
 bash <(curl ...) 或管道直执行。交互脚本在真实终端运行，并通过 util-linux 的 script
-保存回显。安全动作直接执行；修改系统的动作需要 y/N；高风险动作需要输入 RUN。
+保存回显。安全动作直接执行；普通修改动作需要 y/N；高风险动作只显示提示，不再要求输入 RUN。
 
 默认缓存和日志：
 

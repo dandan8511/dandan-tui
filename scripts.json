@@ -2,6 +2,7 @@
   "categories": [
     {"id": "overview", "title": "总览与巡检"},
     {"id": "install", "title": "一键在线安装"},
+    {"id": "tcp_tuning", "title": "TCP/内核调优"},
     {"id": "network", "title": "网络与内核"},
     {"id": "server", "title": "服务器配置"},
     {"id": "advanced", "title": "高级工具"}
@@ -17,7 +18,7 @@
     {"id":"warp","category":"install","title":"WARP 管理菜单","description":"下载 WARP 管理脚本并进入交互菜单。","kind":"online","url":"https://raw.githubusercontent.com/fscarmen/warp/main/menu.sh","interpreter":"bash","args":[],"risk":"warn","needs_root":true},
     {"id":"docker","category":"install","title":"Docker 官方安装","description":"先下载 get.docker.com 到缓存，再本地执行，不使用管道直执行。","kind":"online","url":"https://get.docker.com","interpreter":"sh","args":[],"risk":"warn","needs_root":true},
     {"id":"three_x_ui","category":"install","title":"3x-ui 在线安装","description":"下载 3x-ui 官方安装脚本后执行；安装面板、服务和防火墙配置前请确认服务器环境。","kind":"online","url":"https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh","interpreter":"bash","args":[],"risk":"warn","needs_root":true},
-    {"id":"dd_reinstall","category":"install","title":"一键 DD / 重装系统","description":"下载 bin456789/reinstall 的系统重装脚本；可能清空系统盘，必须输入 RUN 二次确认。","kind":"online","url":"https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
+    {"id":"dd_reinstall","category":"install","title":"一键 DD / 重装系统","description":"下载 bin456789/reinstall 的系统重装脚本；可能清空系统盘，执行前会显示高风险提示。","kind":"online","url":"https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"singbox_233","category":"install","title":"233boy sing-box 安装","description":"下载 233boy sing-box 安装脚本并进入原脚本菜单。","kind":"online","url":"https://github.com/233boy/sing-box/raw/main/install.sh","interpreter":"bash","args":[],"risk":"warn","needs_root":true},
     {"id":"xray_233","category":"install","title":"233boy Xray 安装","description":"下载 233boy Xray 安装脚本并进入原脚本菜单。","kind":"online","url":"https://github.com/233boy/Xray/raw/main/install.sh","interpreter":"bash","args":[],"risk":"warn","needs_root":true},
     {"id":"fnm_node","category":"install","title":"fnm + Node.js 22","description":"下载 fnm 安装器，安装 Node.js 22.11.0，并输出 node/npm 版本。","kind":"online","url":"https://fnm.vercel.app/install","interpreter":"bash","args":[],"mode":"fnm","risk":"warn","needs_root":false},
@@ -29,18 +30,17 @@
 
     {"id":"check_place","category":"network","title":"IP 质量检测","description":"下载 Check.Place，并使用 -I 检测 IPv4/IPv6。","kind":"online","url":"https://Check.Place","interpreter":"bash","args":["-I"],"risk":"safe","needs_root":false},
     {"id":"domain_latency","category":"network","title":"SNI优选域名延迟测试","description":"逐个连接优选域名的 443 端口，使用 TLS/SNI 握手耗时作为参考；每个域名超时 1 秒。","kind":"builtin","risk":"safe","needs_root":false},
-    {"id":"tcp_brutal","category":"network","title":"TCP Brutal / 内核工具（fsc）","description":"fscarmen sing-box 菜单中的完整 tcp.sh 入口；包含 BBR、TCP Brutal、内核和网络优化。","kind":"online","url":"https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcp.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
-    {"id":"kernel_manage","category":"network","title":"官方内核管理","description":"从 Debian/Ubuntu apt 或 Alpine apk 源列出并安装官方内核包；不会自动重启。","kind":"builtin","risk":"danger","needs_root":true},
+    {"id":"tcp_status","category":"tcp_tuning","title":"查看 TCP / 内核状态","description":"查看当前内核、拥塞控制、qdisc、TCP Fast Open 和可用拥塞控制。","kind":"builtin","risk":"safe","needs_root":false},
+    {"id":"tcp_tune","category":"tcp_tuning","title":"本地 TCP/BBR 参数调优","description":"使用 GitHub 内置 tcp-tuning.conf 写入 sysctl 并立即应用；不安装外部内核和软件包。","kind":"builtin","risk":"danger","needs_root":true},
+    {"id":"tcp_brutal","category":"tcp_tuning","title":"完整 tcp.sh（fsc）","description":"进入 fscarmen sing-box 菜单调用的完整 Linux-NetSpeed tcp.sh；内核和依赖安装保持在线执行。","kind":"online","url":"https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcp.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
+    {"id":"kernel_manage","category":"tcp_tuning","title":"官方内核管理","description":"从 Debian/Ubuntu apt 或 Alpine apk 源列出并安装官方内核包；不会自动重启。","kind":"builtin","risk":"danger","needs_root":true},
     {"id":"network_manage","category":"network","title":"本地网卡与 IP 管理","description":"扫描网卡，查看并修改 IPv4、网关和 DNS；修改前保留配置备份，远程 SSH 操作可能断联。","kind":"builtin","risk":"danger","needs_root":true},
     {"id":"ip_preference","category":"network","title":"IPv4 / IPv6 出站优先级","description":"切换系统地址选择优先级，不直接关闭协议栈；用 curl -4/-6 验证真实出站。","kind":"builtin","risk":"warn","needs_root":true},
-    {"id":"bbr_sysctl","category":"network","title":"BBR + FQ 优化","description":"写入独立 sysctl 配置并立即应用，保留原配置备份。","kind":"builtin","risk":"warn","needs_root":true},
 
     {"id":"apt_upgrade","category":"server","title":"系统更新（apt/apk）","description":"Debian/Ubuntu 执行 apt 更新，Alpine 执行 apk 更新；其他系统会拒绝执行。","kind":"builtin","risk":"warn","needs_root":true},
     {"id":"swap_builtin","category":"server","title":"Swap 512MB（内置）","description":"没有活动 Swap 时创建 512MB；已有活动 Swap 则跳过。","kind":"builtin","risk":"warn","needs_root":true},
     {"id":"ssh_config","category":"server","title":"SSH 密码 / 端口","description":"交互式修改密码和 SSH 端口，自动备份、校验、回滚。默认端口 27272。","kind":"builtin","risk":"danger","needs_root":true},
     {"id":"log_manage","category":"server","title":"小硬盘日志策略","description":"查看日志占用并限制 TUI 日志、systemd journal 的容量和保留时间，保留配置备份。","kind":"builtin","risk":"warn","needs_root":true},
-    {"id":"legacy_vps","category":"server","title":"旧版 dandan VPS","description":"运行当前目录中的旧版 vps.sh；保留兼容入口，不在线下载。","kind":"legacy","risk":"danger","needs_root":true},
-
     {"id":"ecs","category":"advanced","title":"融合怪 ECS","description":"下载 ecs.sh 并进入测速、回程和流媒体检测菜单。","kind":"online","url":"https://raw.githubusercontent.com/spiritLHLS/ecs/main/ecs.sh","interpreter":"bash","args":[],"risk":"safe","needs_root":false},
     {"id":"ssl_manage","category":"advanced","title":"Nginx SSL 证书管理","description":"扫描 Nginx 域名和证书，使用 acme.sh 申请、安装和续期；支持 HTTP-01 与 Cloudflare/阿里云/腾讯云 DNS-01。","kind":"builtin","risk":"danger","needs_root":true},
     {"id":"webdav_manage","category":"advanced","title":"WebDAV 安装与管理","description":"扫描本机 WebDAV 相关服务和配置；Debian/Ubuntu 可安装 Apache WebDAV 并配置用户认证。","kind":"builtin","risk":"warn","needs_root":true},

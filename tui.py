@@ -897,6 +897,56 @@ class TUI:
             return 0
         return 2
 
+    def tcp_status(self, log: Path) -> int:
+        print("== TCP / 内核状态 ==")
+        for command in (("uname", "-r"), ("sysctl", "-n", "net.ipv4.tcp_congestion_control"), ("sysctl", "-n", "net.core.default_qdisc"), ("sysctl", "-n", "net.ipv4.tcp_fastopen")):
+            if shutil.which(command[0]):
+                result = subprocess.run(list(command), text=True, capture_output=True)
+                print(f"{' '.join(command)}: {result.stdout.strip() or result.stderr.strip()}")
+        available = Path("/proc/sys/net/ipv4/tcp_allowed_congestion_control")
+        if available.is_file():
+            print(f"可用拥塞控制：{available.read_text(encoding='utf-8', errors='ignore').strip()}")
+        if shutil.which("tc"):
+            print("\n== qdisc ==")
+            subprocess.run(["tc", "qdisc", "show"])
+        return 0
+
+    def tcp_tune(self, log: Path) -> int:
+        if not self.root_required():
+            return 1
+        source = APP_DIR / "tcp-tuning.conf"
+        if not source.is_file():
+            print(f"没有找到本地调优参数：{source}")
+            return 1
+        lines = []
+        for line in source.read_text(encoding="utf-8", errors="ignore").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if not re.fullmatch(r"[A-Za-z0-9_.]+\s*=\s*[^\s#]+(?:\s+[^\s#]+)*", stripped):
+                print(f"调优参数格式不合法，已停止：{line}")
+                return 2
+            lines.append(stripped)
+        if not lines:
+            print("本地调优参数为空，已停止。")
+            return 2
+        target = Path("/etc/sysctl.d/99-yjl-tcp-tuning.conf")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        backup = self.backup_file(target)
+        target.write_text("# Managed by dandan-tui; source: tcp-tuning.conf\n" + "\n".join(lines) + "\n", encoding="utf-8")
+        print(f"已写入：{target}" + (f"；备份：{backup}" if backup else ""))
+        if not shutil.which("sysctl"):
+            print("缺少 sysctl，参数已保存但没有应用。")
+            return 1
+        result = subprocess.run(["sysctl", "--system"])
+        print("\n应用后的关键状态：")
+        self.tcp_status(log)
+        if result.returncode:
+            print("部分参数可能不受当前内核支持；外部内核/依赖安装仍保留在在线 tcp.sh 入口。")
+        else:
+            print("本地 TCP/BBR 参数已应用，无需联网安装。")
+        return result.returncode
+
     def confirm(self, action: dict) -> bool:
         risk = action.get("risk", "warn")
         if risk == "safe":
@@ -905,7 +955,8 @@ class TUI:
         if action.get("url"):
             print(f"来源：{action['url']}")
         if risk == "danger":
-            return input("高风险操作，请输入 RUN 确认：").strip() == "RUN"
+            print("提示：这是高风险操作，确认后将直接执行；本版本不再要求输入 RUN。")
+            return True
         return input("确认执行？[y/N] ").strip().lower() in {"y", "yes"}
 
     def interactive(self, cmd: list[str], log: Path, env: dict[str, str] | None = None) -> int:
@@ -1025,7 +1076,6 @@ done'''
             "recent_logs": ["bash", "-c", f"find {shlex.quote(str(LOGS))} -type f -printf '%TY-%Tm-%Td %TH:%TM  %p\\n' 2>/dev/null | sort -r | sed -n '1,100p'"],
             "apt_upgrade": ["bash", "-c", "export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get upgrade -y"],
             "swap_builtin": ["bash", "-c", "set -Eeuo pipefail; if swapon --show --noheadings 2>/dev/null | grep -q .; then echo '[SKIP] 已存在活动 Swap，不修改。'; exit 0; fi; if [ ! -f /swapfile ]; then fallocate -l 512M /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=512 status=progress; fi; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab; swapon --show"],
-            "bbr_sysctl": ["bash", "-c", "set -Eeuo pipefail; f=/etc/sysctl.d/99-yjl-tui.conf; b=$f.bak.$(date +%Y%m%d-%H%M%S); [ -e $f ] && cp -a $f $b && echo \"备份: $b\" || true; printf '%s\\n' 'net.core.default_qdisc=fq' 'net.ipv4.tcp_congestion_control=bbr' 'net.ipv4.tcp_fastopen=3' 'net.ipv4.tcp_mtu_probing=1' 'fs.file-max=1048576' > $f; sysctl --system; echo \"已写入: $f\""],
         }
         return commands.get(action_id)
 
@@ -1130,14 +1180,12 @@ done'''
         elif action["id"] == "ssh_config":
             rc = self.ssh_config(log)
             input("\n按 Enter 返回菜单...")
-        elif action["id"] == "legacy_vps":
-            path = find_local("vps.sh")
-            password = getpass.getpass("TARGET_PASSWORD（不会写入命令行或日志）：") if path else ""
-            rc = self.interactive(["bash", str(path)], log, {"TARGET_PASSWORD": password}) if path and password else 1
-            if not path:
-                print("没有找到本地 vps.sh。")
-            elif not password:
-                print("密码为空，已取消执行。")
+        elif action["id"] == "tcp_status":
+            rc = self.tcp_status(log)
+            input("\n按 Enter 返回菜单...")
+        elif action["id"] == "tcp_tune":
+            rc = self.tcp_tune(log)
+            input("\n按 Enter 返回菜单...")
         else:
             cmd = self.builtin(action["id"])
             rc = self.interactive(cmd, log) if cmd else 1
@@ -1219,8 +1267,6 @@ def main() -> int:
         return 0
     if "--check" in sys.argv:
         print(f"配置 OK: {CONFIG}")
-        for name in ("vps.sh", "vps_test.sh"):
-            print(f"{name}: {find_local(name) or '未找到'}")
         return 0
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print("需要在真实终端运行；非交互检查请使用 --check。", file=sys.stderr)
