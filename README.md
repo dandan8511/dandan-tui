@@ -50,8 +50,13 @@ Swap 512MB 内置动作先检查活动 Swap，有则跳过；fnm 动作安装并
 sing-box 以 -L 执行；Check.Place 以 -I 执行；SSH 动作隐藏读取密码，修改前备份，
 用 sshd -t 校验，重载后检查端口，失败回滚。
 
-在线安装分类还包含 3x-ui、bin456789 DD 重装、233boy sing-box、233boy Xray、宝塔、1Panel
-和 CasaOS。TCP/内核调优分类现在按上游 Linux-NetSpeed v100.0.4.2 逐项列出
+在线安装分类还包含 3x-ui、妙妙屋、bin456789 DD 重装、233boy sing-box、233boy Xray、宝塔、1Panel
+和 CasaOS。妙妙屋入口使用其官方 `install.sh` 的直接二进制安装方式，根据架构下载
+`mmw-linux-amd64` 或 `mmw-linux-arm64`，安装到 `/usr/local/bin/mmw`，数据和配置保存在
+`/etc/mmw`，服务名为 `mmw.service`，默认端口 8080；此入口不会执行 Docker 安装。
+该官方安装脚本当前面向 Debian/Ubuntu + systemd，Alpine 不会通过这个入口强行安装；Alpine
+如需使用应按上游 release 二进制和 OpenRC 方式单独配置。
+TCP/内核调优分类现在按上游 Linux-NetSpeed v100.0.4.2 逐项列出
 `0/1/2/3/5/8/9/10/60/11-25/27/99` 对应动作。`11-18、21-24、27` 使用仓库内
 `tcp_profiles.json` 的多套本地方案，写入前备份并立即执行 `sysctl --system`；BBR2、FQ_PIE、CAKE
 等当前内核不支持时会直接报告，不会假报成功。内核安装、DD、检测、BBRplus 和 Lotserver
@@ -63,6 +68,12 @@ CPU、磁盘、Geekbench 和 iperf3，轻量模式跳过磁盘与 Geekbench；Te
 可能消耗较多流量，菜单中的普通修改确认不会阻止安全检测。
 网络与内核分类包含网卡配置和 IPv4/IPv6 出站优先级；网卡管理会自动检测 NetworkManager、
 netplan、systemd-networkd、ifupdown 或 Alpine OpenRC，不要求用户判断后台服务。
+
+Docker 管理分类使用本机 Docker CLI 和 Compose，包含 Docker 状态、容器/镜像列表、日志、启动、
+停止、重启、进入容器 Shell、拉取镜像、删除对象、Compose 项目操作、无用资源清理和 Docker
+daemon 重启。Compose 操作需要选择实际项目目录，支持 `compose.yaml`、`compose.yml`、
+`docker-compose.yml` 和 `docker-compose.yaml`；删除卷只在清理动作中明确选择后执行。另有
+可选的 `lazydocker` 官方二进制安装和启动入口，来源是 jesseduffield/lazydocker。
 
 服务器配置分类包含 apt/apk 系统更新、SSH、Swap 和小硬盘日志策略。高级工具包含 Nginx
 SSL 证书管理、WebDAV、nft-forward、port-traffic-dog 和 GRUB 管理。SSL 使用 acme.sh，

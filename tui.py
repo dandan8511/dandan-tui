@@ -1098,7 +1098,14 @@ class TUI:
             return True
         return input("确认执行？[y/N] ").strip().lower() in {"y", "yes"}
 
-    def interactive(self, cmd: list[str], log: Path, env: dict[str, str] | None = None) -> int:
+    def interactive(
+        self,
+        cmd: list[str],
+        log: Path,
+        env: dict[str, str] | None = None,
+        cwd: Path | None = None,
+        pause: bool = True,
+    ) -> int:
         print(f"\n命令：{shlex.join(cmd)}\n日志：{log}")
         print("以下进入原脚本的真实终端交互，结束后按 Enter 返回。\n")
         merged = os.environ.copy()
@@ -1106,10 +1113,11 @@ class TUI:
             merged.update(env)
         run_cmd = ["script", "-qefc", shlex.join(cmd), str(log)] if shutil.which("script") else cmd
         try:
-            result = subprocess.run(run_cmd, env=merged)
+            result = subprocess.run(run_cmd, env=merged, cwd=str(cwd) if cwd else None)
         except KeyboardInterrupt:
             return 130
-        input("\n按 Enter 返回菜单...")
+        if pause:
+            input("\n按 Enter 返回菜单...")
         return result.returncode
 
     def download(self, action: dict, log: Path) -> Path | None:
@@ -1182,7 +1190,8 @@ class TUI:
             return 2
         if action.get("mode") == "fnm":
             return self.run_fnm(path, log)
-        return self.interactive([interpreter, str(path), *map(str, action.get("args", []))], log)
+        env = action.get("env") if isinstance(action.get("env"), dict) else None
+        return self.interactive([interpreter, str(path), *map(str, action.get("args", []))], log, env)
 
     def tcp_online(self, action: dict, log: Path) -> int:
         path = self.download(action, log)
@@ -1260,6 +1269,225 @@ done'''
             "swap_builtin": ["bash", "-c", "set -Eeuo pipefail; if swapon --show --noheadings 2>/dev/null | grep -q .; then echo '[SKIP] 已存在活动 Swap，不修改。'; exit 0; fi; if [ ! -f /swapfile ]; then fallocate -l 512M /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=512 status=progress; fi; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab; swapon --show"],
         }
         return commands.get(action_id)
+
+    @staticmethod
+    def docker_binary() -> list[str] | None:
+        if shutil.which("docker"):
+            return ["docker"]
+        print("未找到 docker 命令，请先在“一键在线安装”中安装 Docker。")
+        return None
+
+    @staticmethod
+    def compose_binary() -> list[str] | None:
+        if shutil.which("docker"):
+            result = subprocess.run(["docker", "compose", "version"], text=True, capture_output=True)
+            if result.returncode == 0:
+                return ["docker", "compose"]
+        if shutil.which("docker-compose"):
+            return ["docker-compose"]
+        print("未找到 Docker Compose 插件或 docker-compose。")
+        return None
+
+    def docker_run(
+        self,
+        args: list[str],
+        cwd: Path | None = None,
+        timeout: int = 300,
+    ) -> int:
+        binary = self.docker_binary()
+        if not binary:
+            return 127
+        try:
+            result = subprocess.run(
+                binary + args,
+                text=True,
+                capture_output=True,
+                cwd=str(cwd) if cwd else None,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            print("Docker 命令超时。")
+            return 124
+        if result.stdout:
+            print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+        if result.stderr:
+            print(result.stderr, end="" if result.stderr.endswith("\n") else "\n")
+        return result.returncode
+
+    @staticmethod
+    def compose_run(command: list[str], cwd: Path, timeout: int = 300) -> int:
+        try:
+            result = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                cwd=str(cwd),
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            print("Compose 命令超时。")
+            return 124
+        if result.stdout:
+            print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+        if result.stderr:
+            print(result.stderr, end="" if result.stderr.endswith("\n") else "\n")
+        return result.returncode
+
+    @staticmethod
+    def docker_name(value: str, image: bool = False) -> bool:
+        pattern = r"[A-Za-z0-9][A-Za-z0-9._/@:+-]*" if image else r"[A-Za-z0-9][A-Za-z0-9_.-]*"
+        return bool(re.fullmatch(pattern, value))
+
+    def docker_status(self, log: Path) -> int:
+        if not self.docker_binary():
+            return 127
+        print("== Docker 版本 ==")
+        rc = self.docker_run(["version"], timeout=30)
+        print("\n== Docker 信息 ==")
+        info_rc = self.docker_run(["info"], timeout=30)
+        compose = self.compose_binary()
+        if compose:
+            print("\n== Compose 版本 ==")
+            compose_result = subprocess.run(compose + ["version"], text=True, capture_output=True)
+            print(compose_result.stdout or compose_result.stderr, end="")
+        if shutil.which("systemctl"):
+            print("\n== Docker systemd 状态 ==")
+            subprocess.run(["systemctl", "is-active", "docker"], check=False)
+        return rc or info_rc
+
+    def docker_containers(self, log: Path) -> int:
+        print("== 全部容器 ==")
+        return self.docker_run([
+            "ps", "-a", "--format",
+            "table {{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}",
+        ])
+
+    def docker_images(self, log: Path) -> int:
+        print("== 本地镜像 ==")
+        return self.docker_run([
+            "image", "ls", "--format",
+            "table {{.Repository}}\\t{{.Tag}}\\t{{.ID}}\\t{{.CreatedSince}}\\t{{.Size}}",
+        ])
+
+    def docker_logs(self, log: Path) -> int:
+        name = input("容器名：").strip()
+        tail = input("显示最近多少行 [200]：").strip() or "200"
+        if not self.docker_name(name) or not tail.isdigit() or int(tail) <= 0:
+            print("容器名或日志行数格式不合法。")
+            return 2
+        command = ["logs", "--tail", tail, "--timestamps"]
+        if input("是否持续跟踪日志？[y/N] ").strip().lower() in {"y", "yes"}:
+            command.append("--follow")
+            command.append(name)
+            binary = self.docker_binary()
+            if not binary:
+                return 127
+            return self.interactive(binary + command, log, pause=False)
+        command.append(name)
+        return self.docker_run(command)
+
+    def docker_container_action(self, action_id: str, log: Path) -> int:
+        name = input("容器名：").strip()
+        if not self.docker_name(name):
+            print("容器名格式不合法。")
+            return 2
+        command = {"docker_start": "start", "docker_stop": "stop", "docker_restart": "restart"}[action_id]
+        return self.docker_run([command, name])
+
+    def docker_exec(self, log: Path) -> int:
+        name = input("容器名：").strip()
+        shell = input("容器内 Shell [/bin/sh]：").strip() or "/bin/sh"
+        if not self.docker_name(name) or not re.fullmatch(r"/[A-Za-z0-9._/-]+", shell):
+            print("容器名或 Shell 路径格式不合法。")
+            return 2
+        binary = self.docker_binary()
+        if not binary:
+            return 127
+        return self.interactive(binary + ["exec", "-it", name, shell], log, pause=False)
+
+    def docker_pull(self, log: Path) -> int:
+        image = input("镜像名（例如 nginx:latest）：").strip()
+        if not self.docker_name(image, image=True):
+            print("镜像名格式不合法。")
+            return 2
+        return self.docker_run(["pull", image], timeout=1800)
+
+    def docker_remove(self, log: Path) -> int:
+        kind = input("1. 删除容器  2. 删除镜像\n选择 [1]: ").strip() or "1"
+        if kind not in {"1", "2"}:
+            return 2
+        name = input("名称：").strip()
+        if not self.docker_name(name, image=kind == "2"):
+            print("名称格式不合法。")
+            return 2
+        if kind == "1":
+            force = input("容器正在运行时是否强制删除？[y/N] ").strip().lower() in {"y", "yes"}
+            args = ["rm"] + (["--force"] if force else []) + [name]
+        else:
+            args = ["rmi", name]
+        return self.docker_run(args)
+
+    def docker_compose(self, log: Path) -> int:
+        compose = self.compose_binary()
+        if not compose:
+            return 127
+        raw_path = input("Compose 项目目录 [当前目录]：").strip() or "."
+        project = Path(raw_path).expanduser()
+        try:
+            project = project.resolve()
+        except OSError as exc:
+            print(f"项目路径无效：{exc}")
+            return 2
+        if not project.is_dir():
+            print(f"目录不存在：{project}")
+            return 2
+        files = [name for name in ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml") if (project / name).is_file()]
+        if not files:
+            print("目录中没有 compose.yaml、compose.yml 或 docker-compose.yml。")
+            return 2
+        print(f"已发现：{', '.join(files)}")
+        print("1. up -d\n2. down\n3. restart\n4. ps\n5. logs\n6. pull\n7. config 校验")
+        choice = input("选择 [1]: ").strip() or "1"
+        commands = {
+            "1": ["up", "-d"],
+            "2": ["down"],
+            "3": ["restart"],
+            "4": ["ps"],
+            "5": ["logs", "--tail", "200"],
+            "6": ["pull"],
+            "7": ["config"],
+        }
+        if choice not in commands:
+            return 2
+        command = compose + commands[choice]
+        if choice in {"5"}:
+            return self.interactive(command, log, cwd=project, pause=False)
+        return self.compose_run(command, cwd=project, timeout=1800 if choice in {"1", "6"} else 300)
+
+    def docker_prune(self, log: Path) -> int:
+        print("将清理停止容器、未使用网络、悬空镜像和构建缓存。")
+        args = ["system", "prune", "--all"]
+        if input("是否同时删除未使用的数据卷？[y/N] ").strip().lower() in {"y", "yes"}:
+            args.append("--volumes")
+        args.append("--force")
+        return self.docker_run(args, timeout=1800)
+
+    def docker_daemon_restart(self, log: Path) -> int:
+        if shutil.which("systemctl"):
+            result = subprocess.run(["systemctl", "restart", "docker"], text=True, capture_output=True)
+        elif shutil.which("service"):
+            result = subprocess.run(["service", "docker", "restart"], text=True, capture_output=True)
+        else:
+            print("当前系统没有 systemctl 或 service，无法重启 Docker daemon。")
+            return 1
+        print(result.stdout or result.stderr, end="")
+        return result.returncode
+
+    def lazydocker(self, log: Path) -> int:
+        if not shutil.which("lazydocker"):
+            print("未找到 lazydocker，请先执行本分类的“安装 lazydocker（官方二进制）”。")
+            return 1
+        return self.interactive(["lazydocker"], log, pause=False)
 
     @staticmethod
     def listening(port: str) -> bool:
@@ -1375,6 +1603,29 @@ done'''
             input("\n按 Enter 返回菜单...")
         elif action["id"] == "tcp_remove_all":
             rc = self.tcp_remove_all(log)
+            input("\n按 Enter 返回菜单...")
+        elif action["id"] in {
+            "docker_status", "docker_containers", "docker_images", "docker_logs",
+            "docker_start", "docker_stop", "docker_restart", "docker_exec", "docker_pull",
+            "docker_remove", "docker_compose", "docker_prune", "docker_daemon_restart", "lazydocker",
+        }:
+            handlers = {
+                "docker_status": self.docker_status,
+                "docker_containers": self.docker_containers,
+                "docker_images": self.docker_images,
+                "docker_logs": self.docker_logs,
+                "docker_start": lambda current_log: self.docker_container_action("docker_start", current_log),
+                "docker_stop": lambda current_log: self.docker_container_action("docker_stop", current_log),
+                "docker_restart": lambda current_log: self.docker_container_action("docker_restart", current_log),
+                "docker_exec": self.docker_exec,
+                "docker_pull": self.docker_pull,
+                "docker_remove": self.docker_remove,
+                "docker_compose": self.docker_compose,
+                "docker_prune": self.docker_prune,
+                "docker_daemon_restart": self.docker_daemon_restart,
+                "lazydocker": self.lazydocker,
+            }
+            rc = handlers[action["id"]](log)
             input("\n按 Enter 返回菜单...")
         else:
             cmd = self.builtin(action["id"])
