@@ -73,6 +73,10 @@ class ConfigSmokeTests(unittest.TestCase):
         ])
         self.assertEqual(actions[0]["tcp_profile"], "nodeseek-bbr")
         self.assertTrue(all(action["needs_root"] for action in actions))
+        window_tuning = actions[-1]
+        self.assertEqual(window_tuning["kind"], "local_script")
+        self.assertEqual(window_tuning["path"], "scripts/nekoneko-tools.sh")
+        self.assertTrue((ROOT / window_tuning["path"]).is_file())
 
     def test_tcp_brutal_repair_only_targets_supported_nodes(self):
         jsonc = '''{
@@ -145,6 +149,7 @@ class LocalBehaviorTests(unittest.TestCase):
         subprocess.run(["bash", "-n", "launch.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "run.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/install-tcp-brutal.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/nekoneko-tools.sh"], cwd=ROOT, check=True)
         subprocess.run([sys.executable, "-m", "py_compile", "tui.py"], cwd=ROOT, check=True)
 
     def test_noninteractive_commands(self):

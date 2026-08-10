@@ -78,7 +78,11 @@ Clash/Sing-box 结构化订阅，或通过 fscarmen 原脚本完整重新导出�
 `Nodeseek论坛` 分类收录一键 BBR、本地状态校验，以及三个用户指定的在线交互脚本入口：
 zeruns 多功能 BBR、Linux-NetSpeed tcpx（锐速/BBRPLUS/BBR2/BBR3）和 nekoneko TCP 窗口调优。
 一键 BBR 只写入 `net.core.default_qdisc=fq` 与 `net.ipv4.tcp_congestion_control=bbr`，并备份后立即应用；
-其余入口会先下载到 TUI 缓存、进行 Bash 语法检查再执行。nekoneko 源站仅提供 HTTP，菜单会明确标记该传输风险。
+多功能 BBR 与 tcpx 会先下载到 TUI 缓存、进行 Bash 语法检查再执行。TCP 窗口调优则固定为
+仓库内 `scripts/nekoneko-tools.sh`，获取自 `http://sh.nekoneko.cloud/tools.sh` 的快照（2026-08-10，
+SHA-256 `ec738ce0d8daedb38b6ea8d89df3454d31e6496cfbf274ac1c8c54587e340602`），菜单入口不依赖原站。
+该上游脚本菜单中保留的“升级脚本”和旧内核 BBR 安装分支仍会请求原作者的其他下载地址；当前内核
+可直接使用本 TUI 的“一键开启 BBR”项，无需走该分支。
 测速工具分类包含 7 个入口：`speedtest.py` 做单次延迟/下载/上传测速；YABS 完整模式测试
 CPU、磁盘、Geekbench 和 iperf3，轻量模式跳过磁盘与 Geekbench；Teddysun `bench.sh`
 测试下载、I/O 和多个地区节点；ECS 进入 IP 质量、三网回程、流媒体和测速菜单；Check.Place
