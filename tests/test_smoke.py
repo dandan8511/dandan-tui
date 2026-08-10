@@ -42,7 +42,7 @@ class ConfigSmokeTests(unittest.TestCase):
             "docker_pull", "docker_remove", "docker_compose", "docker_prune",
             "docker_daemon_restart", "lazydocker", "custom_script",
         }
-        supported_kinds = {"online", "tcp_online", "exit"}
+        supported_kinds = {"online", "local_script", "tcp_online", "exit"}
         missing = []
         for action in self.config["actions"]:
             if (
@@ -55,11 +55,21 @@ class ConfigSmokeTests(unittest.TestCase):
                 missing.append(action["id"])
         self.assertEqual(missing, [])
 
+    def test_tcp_brutal_is_first_local_action(self):
+        actions = [action for action in self.config["actions"] if action.get("category") == "tcp_tuning"]
+        self.assertEqual(actions[0]["id"], "tcp_brutal_install")
+        self.assertEqual(actions[0]["kind"], "local_script")
+        self.assertEqual(actions[0]["path"], "scripts/install-tcp-brutal.sh")
+        self.assertTrue((ROOT / actions[0]["path"]).is_file())
+        for protocol in ("ShadowTLS", "Shadowsocks", "Trojan", "VMess + WS", "VLESS + WS + TLS", "H2 + Reality", "gRPC + Reality"):
+            self.assertIn(protocol, actions[0]["description"])
+
 
 class LocalBehaviorTests(unittest.TestCase):
     def test_shell_and_python_syntax(self):
         subprocess.run(["bash", "-n", "launch.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "run.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/install-tcp-brutal.sh"], cwd=ROOT, check=True)
         subprocess.run([sys.executable, "-m", "py_compile", "tui.py"], cwd=ROOT, check=True)
 
     def test_noninteractive_commands(self):

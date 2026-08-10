@@ -18,7 +18,8 @@ GitHub 仓库地址：
 
     bash <(wget -qO- "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 
-`launch.sh` 会从 GitHub 下载当前 `main` 分支的 `run.sh`、`tui.py`、`scripts.json` 和 `tcp_profiles.json`，
+`launch.sh` 会从 GitHub 下载当前 `main` 分支的 `run.sh`、`tui.py`、`scripts.json`、`tcp_profiles.json`
+和 `scripts/install-tcp-brutal.sh`，
 保存到 VPS 的 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动 TUI。每次执行都会重新
 下载最新文件，不需要先 git clone，也不会把整个仓库下载到 VPS。
 
@@ -56,11 +57,17 @@ sing-box 以 -L 执行；Check.Place 以 -I 执行；SSH 动作隐藏读取密�
 `/etc/mmw`，服务名为 `mmw.service`，默认端口 8080；此入口不会执行 Docker 安装。
 该官方安装脚本当前面向 Debian/Ubuntu + systemd，Alpine 不会通过这个入口强行安装；Alpine
 如需使用应按上游 release 二进制和 OpenRC 方式单独配置。
-TCP/内核调优分类现在按上游 Linux-NetSpeed v100.0.4.2 逐项列出
+TCP调优分类现在按上游 Linux-NetSpeed v100.0.4.2 逐项列出
 `0/1/2/3/5/8/9/10/60/11-25/27/99` 对应动作。`11-18、21-24、27` 使用仓库内
 `tcp_profiles.json` 的多套本地方案，写入前备份并立即执行 `sysctl --system`；BBR2、FQ_PIE、CAKE
 等当前内核不支持时会直接报告，不会假报成功。内核安装、DD、检测、BBRplus 和 Lotserver
 继续通过带 `(fsc)` 标记的在线入口执行；完整 tcp.sh 原菜单也保留在分类底部。
+分类第一项“安装 TCP Brutal（本地）”使用仓库内 `scripts/install-tcp-brutal.sh`，它是
+`tcp.hy2.sh` 的本地克隆，不依赖运行时下载上游安装器，并保留 DKMS、内核 headers、版本查询、
+模块编译、加载和开机自动加载流程。TCP Brutal 仅对应 ShadowTLS、Shadowsocks、Trojan、
+VMess + WS、VLESS + WS + TLS、H2 + Reality、gRPC + Reality；Hysteria2、TUIC、XTLS + Reality、
+AnyTLS 和 naive 不支持。这里的“本地”只表示安装脚本本身在仓库内，DKMS 模块源码和发行版依赖
+仍需要在线下载；Linux 容器若没有匹配 headers 或 `CAP_SYS_MODULE`，安装器会报告失败，不能绕过宿主机限制。
 测速工具分类包含 7 个入口：`speedtest.py` 做单次延迟/下载/上传测速；YABS 完整模式测试
 CPU、磁盘、Geekbench 和 iperf3，轻量模式跳过磁盘与 Geekbench；Teddysun `bench.sh`
 测试下载、I/O 和多个地区节点；ECS 进入 IP 质量、三网回程、流媒体和测速菜单；Check.Place

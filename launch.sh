@@ -15,6 +15,7 @@ trap cleanup EXIT
 
 download() {
     local name="$1"
+    mkdir -p -- "${TEMP_DIR}/$(dirname -- "$name")"
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL --retry 3 --connect-timeout 15 --max-time 180 \
             "${BASE_URL}/${name}?v=${CACHE_BUSTER}" -o "${TEMP_DIR}/${name}"
@@ -77,11 +78,15 @@ download run.sh
 download tui.py
 download scripts.json
 download tcp_profiles.json
+download scripts/install-tcp-brutal.sh
 chmod 700 "${TEMP_DIR}/run.sh"
-chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json"
+chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/install-tcp-brutal.sh"
+chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh"
 mv -f -- "${TEMP_DIR}/run.sh" "${CACHE_ROOT}/run.sh"
 mv -f -- "${TEMP_DIR}/tui.py" "${CACHE_ROOT}/tui.py"
 mv -f -- "${TEMP_DIR}/scripts.json" "${CACHE_ROOT}/scripts.json"
 mv -f -- "${TEMP_DIR}/tcp_profiles.json" "${CACHE_ROOT}/tcp_profiles.json"
+mkdir -p -- "${CACHE_ROOT}/scripts"
+mv -f -- "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${CACHE_ROOT}/scripts/install-tcp-brutal.sh"
 
 exec bash "${CACHE_ROOT}/run.sh" "$@"

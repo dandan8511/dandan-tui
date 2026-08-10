@@ -1193,6 +1193,25 @@ class TUI:
         env = action.get("env") if isinstance(action.get("env"), dict) else None
         return self.interactive([interpreter, str(path), *map(str, action.get("args", []))], log, env)
 
+    def local_script(self, action: dict, log: Path) -> int:
+        relative = action.get("path")
+        if not isinstance(relative, str) or not relative:
+            print("本地脚本路径未配置。")
+            return 2
+        path = (APP_DIR / relative).resolve()
+        try:
+            path.relative_to(APP_DIR.resolve())
+        except ValueError:
+            print("本地脚本路径超出 TUI 工作目录，已停止执行。")
+            return 2
+        if not path.is_file():
+            print(f"未找到本地脚本：{path}")
+            return 1
+        interpreter = action.get("interpreter", "bash")
+        if not self.syntax_ok(path, interpreter):
+            return 2
+        return self.interactive([interpreter, str(path), *map(str, action.get("args", []))], log)
+
     def tcp_online(self, action: dict, log: Path) -> int:
         path = self.download(action, log)
         if not path:
@@ -1561,6 +1580,8 @@ done'''
             rc = 0
         elif action.get("kind") == "online":
             rc = self.online(action, log)
+        elif action.get("kind") == "local_script":
+            rc = self.local_script(action, log)
         elif action.get("kind") == "tcp_online":
             rc = self.tcp_online(action, log)
         elif action.get("kind") == "custom":
