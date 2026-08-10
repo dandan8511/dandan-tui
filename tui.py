@@ -916,6 +916,10 @@ class TUI:
             available = Path("/proc/sys/net/ipv4") / name
             if available.is_file():
                 print(f"{name}：{available.read_text(encoding='utf-8', errors='ignore').strip()}")
+        if shutil.which("lsmod"):
+            result = subprocess.run(["lsmod"], text=True, capture_output=True)
+            bbr_modules = [line for line in result.stdout.splitlines() if "bbr" in line.lower()]
+            print("BBR 模块：" + ("\n".join(bbr_modules) if bbr_modules else "未列出（多数较新内核将 BBR 内建；以可用算法中含 bbr 为准）"))
         if shutil.which("tc"):
             print("\n== qdisc ==")
             subprocess.run(["tc", "qdisc", "show"])

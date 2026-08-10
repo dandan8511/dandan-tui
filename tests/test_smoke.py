@@ -64,6 +64,16 @@ class ConfigSmokeTests(unittest.TestCase):
         for protocol in ("ShadowTLS", "Shadowsocks", "Trojan", "VMess + WS", "VLESS + WS + TLS", "H2 + Reality", "gRPC + Reality"):
             self.assertIn(protocol, actions[0]["description"])
 
+    def test_nodeseek_menu_actions(self):
+        categories = {category["id"]: category["title"] for category in self.config["categories"]}
+        self.assertEqual(categories.get("nodeseek"), "Nodeseek论坛")
+        actions = [action for action in self.config["actions"] if action.get("category") == "nodeseek"]
+        self.assertEqual([action["id"] for action in actions], [
+            "nodeseek_bbr", "nodeseek_tcp_multifunction", "nodeseek_tcpx", "nodeseek_window_tuning",
+        ])
+        self.assertEqual(actions[0]["tcp_profile"], "nodeseek-bbr")
+        self.assertTrue(all(action["needs_root"] for action in actions))
+
     def test_tcp_brutal_repair_only_targets_supported_nodes(self):
         jsonc = '''{
   "inbounds": [{

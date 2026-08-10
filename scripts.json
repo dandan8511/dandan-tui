@@ -4,6 +4,7 @@
     {"id": "install", "title": "一键在线安装"},
     {"id": "speed_test", "title": "测速工具"},
     {"id": "tcp_tuning", "title": "TCP调优"},
+    {"id": "nodeseek", "title": "Nodeseek论坛"},
     {"id": "docker_manage", "title": "Docker 管理"},
     {"id": "network", "title": "网络与内核"},
     {"id": "server", "title": "服务器配置"},
@@ -69,6 +70,10 @@
     {"id":"tcp_brutal","category":"tcp_tuning","title":"完整 tcp.sh 菜单（fsc）","description":"打开上游 Linux-NetSpeed v100.0.4.2 的完整原始菜单，适合需要原脚本其他分支或查看状态的情况。","kind":"online","url":"https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcp.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"kernel_manage","category":"tcp_tuning","title":"官方内核管理（本地菜单）","description":"从 Debian/Ubuntu apt 或 Alpine apk 源列出并安装官方内核包；包下载保持在线。","kind":"builtin","risk":"danger","needs_root":true},
     {"id":"tcp_exit","category":"tcp_tuning","title":"99. 退出脚本","description":"退出当前 TUI。","kind":"exit","risk":"safe","needs_root":false},
+    {"id":"nodeseek_bbr","category":"nodeseek","title":"1. 一键开启 BBR（较新 Debian / Ubuntu）","description":"本地写入 fq 与 bbr 两项 sysctl 设置，立即应用并显示当前拥塞控制、可用算法和 BBR 模块状态；会备份 TUI 原有配置。要求当前内核已提供 bbr。","kind":"builtin","tcp_profile":"nodeseek-bbr","risk":"danger","needs_root":true},
+    {"id":"nodeseek_tcp_multifunction","category":"nodeseek","title":"2. 多功能 BBR 安装脚本（在线）","description":"下载并进入 zeruns 的 tcp.sh 交互菜单。脚本会按菜单执行内核或网络参数操作，请在上游菜单内确认具体项目。","kind":"online","url":"https://gist.github.com/zeruns/a0ec603f20d1b86de6a774a8ba27588f/raw/4f9957ae23f5efb2bb7c57a198ae2cffebfb1c56/tcp.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
+    {"id":"nodeseek_tcpx","category":"nodeseek","title":"3. 锐速 / BBRPLUS / BBR2 / BBR3（在线）","description":"下载并进入 ylx2016/Linux-NetSpeed 的 tcpx.sh 交互菜单。可安装或切换多种内核/加速方案，可能要求重启。","kind":"online","url":"https://github.com/ylx2016/Linux-NetSpeed/raw/master/tcpx.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
+    {"id":"nodeseek_window_tuning","category":"nodeseek","title":"4. TCP 窗口调优（在线）","description":"下载并运行 nekoneko 的 tools.sh。源站使用 HTTP，传输不能验证完整性；仅在你确认信任该来源时执行。","kind":"online","url":"http://sh.nekoneko.cloud/tools.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"network_manage","category":"network","title":"本地网卡与 IP 管理","description":"扫描网卡，查看并修改 IPv4、网关和 DNS；修改前保留配置备份，远程 SSH 操作可能断联。","kind":"builtin","risk":"danger","needs_root":true},
     {"id":"ip_preference","category":"network","title":"IPv4 / IPv6 出站优先级","description":"切换系统地址选择优先级，不直接关闭协议栈；用 curl -4/-6 验证真实出站。","kind":"builtin","risk":"warn","needs_root":true},
 
