@@ -3,6 +3,39 @@
 这是一个基于 Python curses 的 Linux 终端管理工具。菜单和动作来自 scripts.json，
 以后新增脚本时主要修改 JSON，不需要重写菜单。
 
+## VPS 使用
+
+GitHub 仓库地址：
+
+    https://github.com/dandan8511/dandan-tui
+
+在 Debian 11/12/13、主流 Ubuntu 或 Alpine VPS 上，先以 root 或具有 sudo 权限的用户登录，
+然后执行下面的一条命令即可启动最新 TUI：
+
+    bash <(curl -fsSL https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh)
+
+如果系统只有 wget：
+
+    bash <(wget -qO- https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh)
+
+`launch.sh` 会从 GitHub 下载当前 `main` 分支的 `run.sh`、`tui.py` 和 `scripts.json`，
+保存到 VPS 的 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动 TUI。每次执行都会重新
+下载最新文件，不需要先 git clone，也不会把整个仓库下载到 VPS。
+
+root 用户推荐这样启动：
+
+    sudo -i
+    bash <(curl -fsSL https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh)
+
+直接执行 GitHub `main` 分支代表信任仓库当前内容。如果希望固定到某一次提交，可以指定
+提交 SHA，而不是跟随 `main`：
+
+    YJL_TUI_REF=提交SHA bash <(curl -fsSL https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh)
+
+TUI 运行需要 `bash` 和 `python3`；在线安装、证书和部分检测功能还需要 `curl`、`wget`、
+`openssl`、`iproute2` 或系统对应的工具。涉及内核、网络、GRUB、Nginx、证书和面板安装的
+功能需要 root 权限。首次启动会显示一次欢迎语，之后直接进入菜单。
+
 启动：
 
     cd /home/yjl/yjl-tui-jiaoben/linux-tui
