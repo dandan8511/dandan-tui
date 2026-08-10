@@ -17,6 +17,7 @@ from pathlib import Path
 APP_DIR = Path(__file__).resolve().parent
 WORKSPACE = APP_DIR.parent
 CONFIG = APP_DIR / "scripts.json"
+TCP_PROFILES = APP_DIR / "tcp_profiles.json"
 IS_ROOT = os.geteuid() == 0
 CACHE = Path(os.environ.get("YJL_TUI_CACHE_DIR", "/var/cache/yjl-tui" if IS_ROOT else Path.home() / ".cache/yjl-tui"))
 LOGS = Path(os.environ.get("YJL_TUI_LOG_DIR", "/var/log/yjl-tui" if IS_ROOT else Path.home() / ".local/state/yjl-tui"))
@@ -149,6 +150,7 @@ class TUI:
         self.actions = config["actions"]
         self.category = 0
         self.selected = 0
+        self.should_exit = False
         self.status = "方向键选择，Enter 执行，Tab/左右切换分类，q 退出"
 
     def current_actions(self) -> list[dict]:
@@ -899,42 +901,150 @@ class TUI:
 
     def tcp_status(self, log: Path) -> int:
         print("== TCP / 内核状态 ==")
-        for command in (("uname", "-r"), ("sysctl", "-n", "net.ipv4.tcp_congestion_control"), ("sysctl", "-n", "net.core.default_qdisc"), ("sysctl", "-n", "net.ipv4.tcp_fastopen")):
+        for command in (
+            ("uname", "-r"),
+            ("sysctl", "-n", "net.ipv4.tcp_congestion_control"),
+            ("sysctl", "-n", "net.core.default_qdisc"),
+            ("sysctl", "-n", "net.ipv4.tcp_fastopen"),
+            ("sysctl", "-n", "net.ipv4.tcp_ecn"),
+            ("sysctl", "-n", "net.ipv6.conf.all.disable_ipv6"),
+        ):
             if shutil.which(command[0]):
                 result = subprocess.run(list(command), text=True, capture_output=True)
                 print(f"{' '.join(command)}: {result.stdout.strip() or result.stderr.strip()}")
-        available = Path("/proc/sys/net/ipv4/tcp_allowed_congestion_control")
-        if available.is_file():
-            print(f"可用拥塞控制：{available.read_text(encoding='utf-8', errors='ignore').strip()}")
+        for name in ("tcp_available_congestion_control", "tcp_allowed_congestion_control"):
+            available = Path("/proc/sys/net/ipv4") / name
+            if available.is_file():
+                print(f"{name}：{available.read_text(encoding='utf-8', errors='ignore').strip()}")
         if shutil.which("tc"):
             print("\n== qdisc ==")
             subprocess.run(["tc", "qdisc", "show"])
         return 0
 
-    def tcp_tune(self, log: Path) -> int:
+    @staticmethod
+    def tcp_profile_data() -> dict:
+        try:
+            with TCP_PROFILES.open(encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"读取 TCP 配置方案失败：{exc}")
+            return {}
+        if not isinstance(data, dict):
+            print("TCP 配置方案格式错误：根节点必须是对象。")
+            return {}
+        return data
+
+    @staticmethod
+    def tcp_parse_settings(path: Path) -> dict[str, str]:
+        settings: dict[str, str] = {}
+        if not path.is_file():
+            return settings
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if re.fullmatch(r"[A-Za-z0-9_.]+", key) and value:
+                settings[key] = value
+        return settings
+
+    def tcp_dynamic_settings(self, settings: dict[str, str]) -> dict[str, str] | None:
+        memory_match = re.search(r"MemTotal:\s+(\d+)", Path("/proc/meminfo").read_text(encoding="utf-8", errors="ignore")) if Path("/proc/meminfo").is_file() else None
+        default_memory = max(1, int(memory_match.group(1)) // 1024) if memory_match else 1024
+        prompts = (
+            ("网络延迟(ms)", "100"),
+            ("本地带宽(Mbps)", "1000"),
+            ("VPS带宽(Mbps)", "1000"),
+            ("VPS内存(MB)", str(default_memory)),
+        )
+        values: list[int] = []
+        print("激进方案会按 BDP 计算缓冲区。直接回车使用默认值，不会自动重启。")
+        for label, default in prompts:
+            raw = input(f"{label} [{default}]: ").strip() or default
+            if not raw.isdigit() or int(raw) <= 0:
+                print(f"{label} 必须是正整数，已取消。")
+                return None
+            values.append(int(raw))
+        latency, local_bw, vps_bw, vps_mem = values
+        min_bw = min(local_bw, vps_bw)
+        bdp = min_bw * 1_000_000 * latency // 8 // 1000
+        max_mem_bytes = vps_mem * 1024 * 1024 * 50 // 100
+        rmem_max = min(max(bdp * 2, 1_048_576), max_mem_bytes)
+        wmem_max = min(max(bdp * 3 // 2, 1_048_576), max_mem_bytes)
+        netdev_backlog = min(max(min_bw * 10, 1000), 10000)
+        somaxconn = min(max(vps_mem * 20, 512), 16384)
+        syn_backlog = min(somaxconn * 4, 65536)
+        init_cwnd = min(max(latency // 20 + 10, 10), 32)
+        min_free = min(max(vps_mem * 1024 * 12 // 100, 65536), 524288)
+        settings.update({
+            "vm.min_free_kbytes": str(min_free),
+            "net.core.netdev_max_backlog": str(netdev_backlog),
+            "net.core.rmem_max": str(rmem_max),
+            "net.core.wmem_max": str(wmem_max),
+            "net.core.somaxconn": str(somaxconn),
+            "net.ipv4.tcp_rmem": f"32768 262144 {rmem_max}",
+            "net.ipv4.tcp_wmem": f"32768 262144 {wmem_max}",
+            "net.ipv4.tcp_init_cwnd": str(init_cwnd),
+            "net.ipv4.tcp_max_syn_backlog": str(syn_backlog),
+        })
+        print(f"最终参数：延迟={latency}ms，本地带宽={local_bw}Mbps，VPS带宽={vps_bw}Mbps，内存={vps_mem}MB")
+        return settings
+
+    def tcp_apply_profile(self, profile_id: str, log: Path) -> int:
         if not self.root_required():
             return 1
-        source = APP_DIR / "tcp-tuning.conf"
-        if not source.is_file():
-            print(f"没有找到本地调优参数：{source}")
+        profiles = self.tcp_profile_data()
+        profile = profiles.get(profile_id)
+        if not isinstance(profile, dict) or not isinstance(profile.get("settings"), dict):
+            print(f"没有找到 TCP 配置方案：{profile_id}")
             return 1
-        lines = []
-        for line in source.read_text(encoding="utf-8", errors="ignore").splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            if not re.fullmatch(r"[A-Za-z0-9_.]+\s*=\s*[^\s#]+(?:\s+[^\s#]+)*", stripped):
-                print(f"调优参数格式不合法，已停止：{line}")
+        settings = self.tcp_parse_settings(Path("/etc/sysctl.d/99-yjl-tcp-tuning.conf"))
+        for key, value in profile["settings"].items():
+            if not re.fullmatch(r"[A-Za-z0-9_.]+", str(key)) or not re.fullmatch(r"[^#\n]+", str(value).strip()):
+                print(f"配置方案包含不合法参数：{key}={value}")
                 return 2
-            lines.append(stripped)
-        if not lines:
-            print("本地调优参数为空，已停止。")
+            settings[str(key)] = str(value).strip()
+        if profile.get("dynamic") and self.tcp_dynamic_settings(settings) is None:
             return 2
+        if profile.get("settings", {}).get("net.ipv4.tcp_congestion_control"):
+            requested = str(profile["settings"]["net.ipv4.tcp_congestion_control"])
+            allowed_path = Path("/proc/sys/net/ipv4/tcp_allowed_congestion_control")
+            allowed = allowed_path.read_text(encoding="utf-8", errors="ignore").split() if allowed_path.is_file() else []
+            if allowed and requested not in allowed:
+                print(f"当前内核不支持 {requested}，可用：{' '.join(allowed)}")
+                print("请先使用带 (fsc) 的内核安装入口，或选择当前内核支持的方案。")
+                return 2
         target = Path("/etc/sysctl.d/99-yjl-tcp-tuning.conf")
         target.parent.mkdir(parents=True, exist_ok=True)
         backup = self.backup_file(target)
-        target.write_text("# Managed by dandan-tui; source: tcp-tuning.conf\n" + "\n".join(lines) + "\n", encoding="utf-8")
+        lines = [f"{key} = {value}" for key, value in settings.items()]
+        target.write_text(
+            "# Managed by dandan-tui; profile: " + profile_id + "\n" + "\n".join(lines) + "\n",
+            encoding="utf-8",
+        )
         print(f"已写入：{target}" + (f"；备份：{backup}" if backup else ""))
+        if profile.get("limits"):
+            limits = Path("/etc/security/limits.d/99-yjl-tui-tcp.conf")
+            limits.parent.mkdir(parents=True, exist_ok=True)
+            limits_backup = self.backup_file(limits)
+            limits.write_text(
+                "# Managed by dandan-tui\n* soft nofile 1000000\n* hard nofile 1000000\n",
+                encoding="utf-8",
+            )
+            print(f"已写入：{limits}" + (f"；备份：{limits_backup}" if limits_backup else ""))
+            if system_profile()["初始化"] == "systemd":
+                dropin = Path("/etc/systemd/system.conf.d/99-yjl-tui-tcp.conf")
+                dropin.parent.mkdir(parents=True, exist_ok=True)
+                dropin_backup = self.backup_file(dropin)
+                dropin.write_text(
+                    "# Managed by dandan-tui\n[Manager]\nDefaultLimitNOFILE=1000000\n",
+                    encoding="utf-8",
+                )
+                print(f"已写入：{dropin}" + (f"；备份：{dropin_backup}" if dropin_backup else ""))
+                if shutil.which("systemctl"):
+                    subprocess.run(["systemctl", "daemon-reload"], check=False)
         if not shutil.which("sysctl"):
             print("缺少 sysctl，参数已保存但没有应用。")
             return 1
@@ -942,9 +1052,38 @@ class TUI:
         print("\n应用后的关键状态：")
         self.tcp_status(log)
         if result.returncode:
-            print("部分参数可能不受当前内核支持；外部内核/依赖安装仍保留在在线 tcp.sh 入口。")
+            print("部分参数可能不受当前内核支持；已保留配置文件，请按输出修正或改用兼容方案。")
         else:
-            print("本地 TCP/BBR 参数已应用，无需联网安装。")
+            print(f"本地方案已应用：{profile.get('title', profile_id)}；无需联网安装。")
+        return result.returncode
+
+    @staticmethod
+    def restore_tcp_file(path: Path) -> None:
+        backups = sorted(path.parent.glob(path.name + ".yjl-tui.bak.*"))
+        if backups:
+            shutil.copy2(backups[0], path)
+            print(f"已恢复原文件：{path} <- {backups[0]}")
+        elif path.exists():
+            path.unlink()
+            print(f"已删除 TUI 文件：{path}")
+
+    def tcp_remove_all(self, log: Path) -> int:
+        if not self.root_required():
+            return 1
+        paths = (
+            Path("/etc/sysctl.d/99-yjl-tcp-tuning.conf"),
+            Path("/etc/security/limits.d/99-yjl-tui-tcp.conf"),
+            Path("/etc/systemd/system.conf.d/99-yjl-tui-tcp.conf"),
+        )
+        for path in paths:
+            self.restore_tcp_file(path)
+        if shutil.which("systemctl") and Path("/run/systemd/system").exists():
+            subprocess.run(["systemctl", "daemon-reload"], check=False)
+        if shutil.which("sysctl"):
+            result = subprocess.run(["sysctl", "--system"])
+        else:
+            result = subprocess.CompletedProcess([], 1)
+        print("已卸载本 TUI 写入的 TCP 加速配置；没有删除其他软件的 sysctl 文件。")
         return result.returncode
 
     def confirm(self, action: dict) -> bool:
@@ -1033,6 +1172,38 @@ class TUI:
         if action.get("mode") == "fnm":
             return self.run_fnm(path, log)
         return self.interactive([interpreter, str(path), *map(str, action.get("args", []))], log)
+
+    def tcp_online(self, action: dict, log: Path) -> int:
+        path = self.download(action, log)
+        if not path:
+            return 1
+        interpreter = action.get("interpreter", "bash")
+        if not self.syntax_ok(path, interpreter):
+            return 2
+        choice = str(action.get("tcp_choice", "")).strip()
+        if not choice:
+            return self.interactive([interpreter, str(path)], log)
+        source = path.read_text(encoding="utf-8", errors="ignore")
+        marker = '  read -p " 请输入数字 :" num'
+        replacement = (
+            '  if [[ -n "${YJL_TUI_TCP_CHOICE:-}" ]]; then\n'
+            '    num="${YJL_TUI_TCP_CHOICE}"\n'
+            '    unset YJL_TUI_TCP_CHOICE\n'
+            '  else\n'
+            '    read -p " 请输入数字 :" num\n'
+            '  fi'
+        )
+        if marker not in source:
+            print("上游 tcp.sh 菜单格式已变化，无法自动定位编号；将打开原始菜单。")
+            return self.interactive([interpreter, str(path)], log)
+        selected = path.with_name(f".{path.name}.{safe_name(choice)}.selected")
+        selected.write_text(source.replace(marker, replacement, 1), encoding="utf-8")
+        try:
+            if not self.syntax_ok(selected, interpreter):
+                return 2
+            return self.interactive([interpreter, str(selected)], log, {"YJL_TUI_TCP_CHOICE": choice})
+        finally:
+            selected.unlink(missing_ok=True)
 
     @staticmethod
     def builtin(action_id: str) -> list[str] | None:
@@ -1146,8 +1317,13 @@ done'''
             input("按 Enter 返回菜单...")
             return
         print("\n" + "=" * 70 + f"\n开始：{action['title']}\n" + "=" * 70)
-        if action.get("kind") == "online":
+        if action.get("kind") == "exit":
+            self.should_exit = True
+            rc = 0
+        elif action.get("kind") == "online":
             rc = self.online(action, log)
+        elif action.get("kind") == "tcp_online":
+            rc = self.tcp_online(action, log)
         elif action.get("kind") == "custom":
             rc = self.custom(log)
         elif action["id"] == "system_info":
@@ -1183,8 +1359,11 @@ done'''
         elif action["id"] == "tcp_status":
             rc = self.tcp_status(log)
             input("\n按 Enter 返回菜单...")
-        elif action["id"] == "tcp_tune":
-            rc = self.tcp_tune(log)
+        elif action.get("tcp_profile"):
+            rc = self.tcp_apply_profile(action["tcp_profile"], log)
+            input("\n按 Enter 返回菜单...")
+        elif action["id"] == "tcp_remove_all":
+            rc = self.tcp_remove_all(log)
             input("\n按 Enter 返回菜单...")
         else:
             cmd = self.builtin(action["id"])
@@ -1205,14 +1384,15 @@ done'''
             attr = curses.color_pair(1) | curses.A_BOLD if i == self.category else 0
             screen.addnstr(5 + i, 2, ("❯ " if i == self.category else "  ") + cat["title"], left - 4, attr)
         actions = self.current_actions()
+        visible_capacity = max(1, height - 12)
+        start = max(0, min(self.selected, max(0, len(actions) - visible_capacity)))
         screen.addnstr(3, left + 3, "动作（Enter 执行）", width - left - 5, curses.A_BOLD)
-        for i, action in enumerate(actions):
-            if 5 + i >= height - 6:
-                break
+        for row, action in enumerate(actions[start:start + visible_capacity]):
+            index = start + row
             risk = action.get("risk", "warn")
             label = {"safe": "安全", "warn": "修改", "danger": "高危"}.get(risk, risk)
-            attr = curses.color_pair(1) | curses.A_BOLD if i == self.selected else (curses.color_pair(4) if risk == "danger" else 0)
-            screen.addnstr(5 + i, left + 3, ("❯ " if i == self.selected else "  ") + action["title"] + f" [{label}]", width - left - 5, attr)
+            attr = curses.color_pair(1) | curses.A_BOLD if index == self.selected else (curses.color_pair(4) if risk == "danger" else 0)
+            screen.addnstr(5 + row, left + 3, ("❯ " if index == self.selected else "  ") + action["title"] + f" [{label}]", width - left - 5, attr)
         current = actions[self.selected] if actions else {"description": "此分类没有动作"}
         y = max(5, height - 5)
         screen.hline(y - 1, 0, curses.ACS_HLINE, width)
@@ -1249,6 +1429,8 @@ done'''
                 curses.endwin()
                 self.execute(actions[self.selected])
                 screen.clear()
+                if self.should_exit:
+                    return
 
 
 def main() -> int:
@@ -1267,6 +1449,7 @@ def main() -> int:
         return 0
     if "--check" in sys.argv:
         print(f"配置 OK: {CONFIG}")
+        print(f"TCP 方案: {TCP_PROFILES if TCP_PROFILES.is_file() else '未找到'}")
         return 0
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print("需要在真实终端运行；非交互检查请使用 --check。", file=sys.stderr)

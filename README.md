@@ -18,7 +18,7 @@ GitHub 仓库地址：
 
     bash <(wget -qO- "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 
-`launch.sh` 会从 GitHub 下载当前 `main` 分支的 `run.sh`、`tui.py`、`scripts.json` 和 `tcp-tuning.conf`，
+`launch.sh` 会从 GitHub 下载当前 `main` 分支的 `run.sh`、`tui.py`、`scripts.json` 和 `tcp_profiles.json`，
 保存到 VPS 的 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动 TUI。每次执行都会重新
 下载最新文件，不需要先 git clone，也不会把整个仓库下载到 VPS。
 
@@ -51,8 +51,11 @@ sing-box 以 -L 执行；Check.Place 以 -I 执行；SSH 动作隐藏读取密�
 用 sshd -t 校验，重载后检查端口，失败回滚。
 
 在线安装分类还包含 3x-ui、bin456789 DD 重装、233boy sing-box、233boy Xray、宝塔、1Panel
-和 CasaOS。TCP/内核调优分类包含本地 `tcp-tuning.conf` 参数、TCP 状态、官方内核管理和
-完整 tcp.sh（fsc）入口；本地 sysctl/BBR 参数已经随仓库下载，内核和外部依赖仍在线安装。
+和 CasaOS。TCP/内核调优分类现在按上游 Linux-NetSpeed v100.0.4.2 逐项列出
+`0/1/2/3/5/8/9/10/60/11-25/27/99` 对应动作。`11-18、21-24、27` 使用仓库内
+`tcp_profiles.json` 的多套本地方案，写入前备份并立即执行 `sysctl --system`；BBR2、FQ_PIE、CAKE
+等当前内核不支持时会直接报告，不会假报成功。内核安装、DD、检测、BBRplus 和 Lotserver
+继续通过带 `(fsc)` 标记的在线入口执行；完整 tcp.sh 原菜单也保留在分类底部。
 网络与内核分类包含网卡配置和 IPv4/IPv6 出站优先级；网卡管理会自动检测 NetworkManager、
 netplan、systemd-networkd、ifupdown 或 Alpine OpenRC，不要求用户判断后台服务。
 
@@ -72,6 +75,10 @@ TUI 日志；它是连通性/握手耗时参考，不等同于 HTTP 下载速度
 在线脚本会先下载到缓存文件，再做 bash -n 或 sh -n 语法检查，之后才执行；不会使用
 bash <(curl ...) 或管道直执行。交互脚本在真实终端运行，并通过 util-linux 的 script
 保存回显。安全动作直接执行；普通修改动作需要 y/N；高风险动作只显示提示，不再要求输入 RUN。
+
+TCP 本地方案的运行时文件是 `/etc/sysctl.d/99-yjl-tcp-tuning.conf`，切换方案时保留时间戳备份；
+`25` 只恢复或删除本 TUI 自己写入的 sysctl、limits 和 systemd 配置，不会像旧版一样删除系统中
+其他软件的全部 `/etc/sysctl.d/*.conf`。IPv6 开关只修改 sysctl，不负责分配地址或修复上游路由。
 
 默认缓存和日志：
 

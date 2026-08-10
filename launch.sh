@@ -76,12 +76,12 @@ fi
 download run.sh
 download tui.py
 download scripts.json
-download tcp-tuning.conf
+download tcp_profiles.json
 chmod 700 "${TEMP_DIR}/run.sh"
-chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp-tuning.conf"
+chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json"
 mv -f -- "${TEMP_DIR}/run.sh" "${CACHE_ROOT}/run.sh"
 mv -f -- "${TEMP_DIR}/tui.py" "${CACHE_ROOT}/tui.py"
 mv -f -- "${TEMP_DIR}/scripts.json" "${CACHE_ROOT}/scripts.json"
-mv -f -- "${TEMP_DIR}/tcp-tuning.conf" "${CACHE_ROOT}/tcp-tuning.conf"
+mv -f -- "${TEMP_DIR}/tcp_profiles.json" "${CACHE_ROOT}/tcp_profiles.json"
 
 exec bash "${CACHE_ROOT}/run.sh" "$@"
