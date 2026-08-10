@@ -58,14 +58,27 @@ sing-box 以 -L 执行；Check.Place 以 -I 执行；SSH 动作隐藏读取密�
 该官方安装脚本当前面向 Debian/Ubuntu + systemd，Alpine 不会通过这个入口强行安装；Alpine
 如需使用应按上游 release 二进制和 OpenRC 方式单独配置。
 
-`VLESS + WS + TLS（fsr）` 是独立分类，调用仓库内的 fscarmen/sing-box 本地快照
-`scripts/fscarmen-sing-box-v1.3.20.sh`。快照来源为 fscarmen/sing-box `main` 的
-`e1f08cff8a39ec0ac595d549e886b0ac88514b68`（上游脚本版本 `v1.3.20 (2026.08.07)`，导入前
-SHA-256：`0fbccc6f4ac6a0b2fa5c7cf90130904eae3f322e2451062dd93d6b6f92d0287f`）。本地启动器只添加
-`--yjl-tui-vless-ws-tls` 参数，等同上游首次安装菜单的 `2`（订阅 + Argo）再选择协议 `i`
-（vless + ws + tls），但不跳过端口、Argo、CDN、UUID、节点名等上游交互。TUI 启动不再下载这个
-入口脚本本身；但该安装流程仍会在线安装系统依赖、sing-box、cloudflared、Nginx/证书和订阅模板，
-所以它是“脚本入口本地化”，不是包含所有二进制与系统包的完全离线安装包。
+`sing-box(fsr)` 是独立分类，右侧的“完整菜单（本地克隆）”对应上游命令
+`bash <(wget -qO- https://raw.githubusercontent.com/fscarmen/sing-box/main/sing-box.sh)`，但 TUI 实际
+执行仓库内的 `scripts/fscarmen-sing-box.sh`。当前文件是未修改的完整上游快照，来源为
+fscarmen/sing-box `main` 的 `e1f08cff8a39ec0ac595d549e886b0ac88514b68`，脚本版本
+`v1.3.20 (2026.08.07)`，SHA-256 为
+`0fbccc6f4ac6a0b2fa5c7cf90130904eae3f322e2451062dd93d6b6f92d0287f`。因此上游仓库或原始下载地址
+消失后，TUI 仍可从自己的 GitHub 缓存下载并打开完整菜单；但菜单后续下载的系统依赖、sing-box、
+cloudflared、证书和订阅模板仍需要网络。
+
+以后要同步 fscarmen 上游更新时，先在工程根目录执行以下命令保存候选版本，确认差异后再覆盖：
+
+    git ls-remote https://github.com/fscarmen/sing-box.git refs/heads/main
+    curl -fL https://raw.githubusercontent.com/fscarmen/sing-box/main/sing-box.sh -o /tmp/fscarmen-sing-box.sh
+    bash -n /tmp/fscarmen-sing-box.sh
+    sha256sum /tmp/fscarmen-sing-box.sh
+    diff -u scripts/fscarmen-sing-box.sh /tmp/fscarmen-sing-box.sh | less
+
+确认后用 `cp /tmp/fscarmen-sing-box.sh scripts/fscarmen-sing-box.sh` 覆盖本地快照，并更新本段中的
+提交号、版本号和 SHA-256；最后执行 `python3 -m unittest discover -s tests -v`、`./run.sh --check`、
+`git add scripts/fscarmen-sing-box.sh README.md && git commit && git push`。菜单、`launch.sh` 和 TUI 路径
+固定指向 `scripts/fscarmen-sing-box.sh`，所以正常上游更新不需要再修改代码。
 
 TCP调优分类现在按上游 Linux-NetSpeed v100.0.4.2 逐项列出
 `0/1/2/3/5/8/9/10/60/11-25/27/99` 对应动作。`11-18、21-24、27` 使用仓库内
@@ -128,7 +141,7 @@ TUI 日志；它是连通性/握手耗时参考，不等同于 HTTP 下载速度
 
 在线脚本会先下载到缓存文件，再做 bash -n 或 sh -n 语法检查，之后才执行；不会使用
 bash <(curl ...) 或管道直执行。交互脚本在真实终端运行，并通过 util-linux 的 script
-保存回显。安全动作直接执行；普通修改动作需要 y/N；高风险动作只显示提示，不再要求输入 RUN。
+保存回显。TUI 不显示动作风险标签，也不在执行前要求确认；进入的上游脚本仍按其自身交互流程运行。
 
 TCP 本地方案的运行时文件是 `/etc/sysctl.d/99-yjl-tcp-tuning.conf`，切换方案时保留时间戳备份；
 `25` 只恢复或删除本 TUI 自己写入的 sysctl、limits 和 systemd 配置，不会像旧版一样删除系统中

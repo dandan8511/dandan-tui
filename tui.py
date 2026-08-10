@@ -1274,16 +1274,7 @@ class TUI:
         return result.returncode
 
     def confirm(self, action: dict) -> bool:
-        risk = action.get("risk", "warn")
-        if risk == "safe":
-            return True
-        print(f"\n动作：{action['title']}\n说明：{action.get('description', '')}")
-        if action.get("url"):
-            print(f"来源：{action['url']}")
-        if risk == "danger":
-            print("提示：这是高风险操作，确认后将直接执行；本版本不再要求输入 RUN。")
-            return True
-        return input("确认执行？[y/N] ").strip().lower() in {"y", "yes"}
+        return True
 
     def interactive(
         self,
@@ -2316,10 +2307,8 @@ done'''
         screen.addnstr(3, left + 3, "动作（Enter 执行）", width - left - 5, curses.A_BOLD)
         for row, action in enumerate(actions[start:start + visible_capacity]):
             index = start + row
-            risk = action.get("risk", "warn")
-            label = {"safe": "安全", "warn": "修改", "danger": "高危"}.get(risk, risk)
-            attr = curses.color_pair(1) | curses.A_BOLD if index == self.selected else (curses.color_pair(4) if risk == "danger" else 0)
-            screen.addnstr(5 + row, left + 3, ("❯ " if index == self.selected else "  ") + action["title"] + f" [{label}]", width - left - 5, attr)
+            attr = curses.color_pair(1) | curses.A_BOLD if index == self.selected else 0
+            screen.addnstr(5 + row, left + 3, ("❯ " if index == self.selected else "  ") + action["title"], width - left - 5, attr)
         current = actions[self.selected] if actions else {"description": "此分类没有动作"}
         y = max(5, height - 5)
         screen.hline(y - 1, 0, curses.ACS_HLINE, width)
@@ -2372,7 +2361,7 @@ def main() -> int:
     manager = TUI(config)
     if "--list" in sys.argv:
         for action in manager.actions:
-            print(f"{action['id']:18} {action['title']} [{action.get('risk', 'warn')}]")
+            print(f"{action['id']:18} {action['title']}")
         return 0
     if "--check" in sys.argv:
         print(f"配置 OK: {CONFIG}")

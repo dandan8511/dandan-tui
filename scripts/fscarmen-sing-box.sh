@@ -3,10 +3,6 @@
 # 当前脚本版本号
 VERSION='v1.3.20 (2026.08.07)'
 
-# Local snapshot of fscarmen/sing-box main at e1f08cff8a39ec0ac595d549e886b0ac88514b68.
-# YJL-TUI adds only --yjl-tui-vless-ws-tls: the same settings as menu 2,
-# with protocol i preselected, while retaining the upstream interactive prompts.
-
 # Github 反代加速代理
 GITHUB_PROXY=('https://hub.glowp.xyz/' 'https://proxy.vvvv.ee/')
 
@@ -6403,12 +6399,6 @@ for z in ${!ALL_PARAMETER[@]}; do
     -R )
       change_protocols; exit 0
       ;;
-    --YJL-TUI-VLESS-WS-TLS )
-      YJL_TUI_VLESS_WS_TLS=1
-      CHOOSE_PROTOCOLS=i
-      IS_SUB=is_sub
-      IS_ARGO=is_argo
-      ;;
     --LANGUAGE )
       ((z++)); [[ "${ALL_PARAMETER[z]^^}" =~ ^C ]] && LANGUAGE=C || LANGUAGE=E
       ;;
@@ -6479,11 +6469,7 @@ check_arch
 check_dependencies
 check_system_ip
 check_install
-if [ "$YJL_TUI_VLESS_WS_TLS" = 1 ]; then
-  install_sing-box
-  export_list install
-  create_shortcut
-elif [ "$NONINTERACTIVE_INSTALL" = 'noninteractive_install' ]; then
+if [ "$NONINTERACTIVE_INSTALL" = 'noninteractive_install' ]; then
   # 预设默认值，允许只传 --CHOOSE_PROTOCOLS 进行最小无交互安装。
   CHOOSE_PROTOCOLS=${CHOOSE_PROTOCOLS:-'a'}
   START_PORT=${START_PORT:-"$START_PORT_DEFAULT"}

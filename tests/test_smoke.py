@@ -78,23 +78,22 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertEqual(window_tuning["path"], "scripts/nekoneko-tools.sh")
         self.assertTrue((ROOT / window_tuning["path"]).is_file())
 
-    def test_fscarmen_vless_ws_tls_local_snapshot(self):
+    def test_fscarmen_singbox_full_local_clone(self):
         categories = {category["id"]: category["title"] for category in self.config["categories"]}
-        self.assertEqual(categories.get("fscarmen_vless"), "VLESS + WS + TLS（fsr）")
-        action = next(action for action in self.config["actions"] if action["id"] == "fscarmen_vless_ws_tls")
+        self.assertEqual(categories.get("fscarmen_singbox"), "sing-box(fsr)")
+        action = next(action for action in self.config["actions"] if action["id"] == "fscarmen_singbox_menu")
         self.assertEqual(action["kind"], "local_script")
-        self.assertEqual(action["path"], "scripts/fscarmen-vless-ws-tls.sh")
+        self.assertEqual(action["path"], "scripts/fscarmen-sing-box.sh")
         self.assertTrue(action["needs_root"])
+        self.assertIn("bash <(wget -qO- fscarmen/sing-box.sh)", action["title"])
 
-        launcher = ROOT / action["path"]
-        snapshot = ROOT / "scripts/fscarmen-sing-box-v1.3.20.sh"
-        self.assertTrue(launcher.is_file())
+        snapshot = ROOT / action["path"]
         self.assertTrue(snapshot.is_file())
-        self.assertIn("--yjl-tui-vless-ws-tls", launcher.read_text(encoding="utf-8"))
         source = snapshot.read_text(encoding="utf-8")
-        self.assertIn("e1f08cff8a39ec0ac595d549e886b0ac88514b68", source)
-        self.assertIn("--YJL-TUI-VLESS-WS-TLS", source)
-        self.assertIn("CHOOSE_PROTOCOLS=i", source)
+        self.assertIn("VERSION='v1.3.20 (2026.08.07)'", source)
+        self.assertIn('PROTOCOL_LIST=("XTLS + reality"', source)
+        self.assertNotIn("YJL-TUI", source)
+        self.assertNotIn("--YJL-TUI-VLESS-WS-TLS", source)
 
     def test_lscpu_parser_and_cpu_profile_fields(self):
         sample = """Architecture: x86_64
@@ -200,8 +199,7 @@ class LocalBehaviorTests(unittest.TestCase):
         subprocess.run(["bash", "-n", "run.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/install-tcp-brutal.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/nekoneko-tools.sh"], cwd=ROOT, check=True)
-        subprocess.run(["bash", "-n", "scripts/fscarmen-vless-ws-tls.sh"], cwd=ROOT, check=True)
-        subprocess.run(["bash", "-n", "scripts/fscarmen-sing-box-v1.3.20.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/fscarmen-sing-box.sh"], cwd=ROOT, check=True)
         subprocess.run([sys.executable, "-m", "py_compile", "tui.py"], cwd=ROOT, check=True)
 
     def test_noninteractive_commands(self):
@@ -218,12 +216,17 @@ class LocalBehaviorTests(unittest.TestCase):
         self.assertEqual(listing.returncode, 0)
         self.assertIn("warp", listing.stdout)
         self.assertIn("onepanel", listing.stdout)
+        self.assertIn("fscarmen_singbox_menu", listing.stdout)
+        self.assertNotIn("[danger]", listing.stdout)
+        self.assertNotIn("[warn]", listing.stdout)
+        self.assertNotIn("[safe]", listing.stdout)
 
     def test_input_and_name_validation(self):
         self.assertTrue(tui.TUI.docker_name("nginx:latest", image=True))
         self.assertFalse(tui.TUI.docker_name("bad name"))
         self.assertEqual(tui.safe_name("中文 action"), "action")
         self.assertIsNotNone(tui.TUI.builtin("domain_latency"))
+        self.assertTrue(tui.TUI({"categories": [], "actions": []}).confirm({"risk": "danger"}))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
   "categories": [
     {"id": "overview", "title": "总览与巡检"},
     {"id": "install", "title": "一键在线安装"},
-    {"id": "fscarmen_vless", "title": "VLESS + WS + TLS（fsr）"},
+    {"id": "fscarmen_singbox", "title": "sing-box(fsr)"},
     {"id": "speed_test", "title": "测速工具"},
     {"id": "tcp_tuning", "title": "TCP调优"},
     {"id": "nodeseek", "title": "Nodeseek论坛"},
@@ -23,7 +23,7 @@
     {"id":"docker","category":"install","title":"Docker 官方安装","description":"先下载 get.docker.com 到缓存，再本地执行，不使用管道直执行。","kind":"online","url":"https://get.docker.com","interpreter":"sh","args":[],"risk":"warn","needs_root":true},
     {"id":"miaomiaowu","category":"install","title":"妙妙屋二进制安装（systemd）","description":"使用 iluobei/miaomiaowu 官方 install.sh，按架构下载 mmw 二进制并创建 systemd 服务；不使用 Docker，适用于 Debian/Ubuntu，支持端口交互设置。","kind":"online","url":"https://raw.githubusercontent.com/iluobei/miaomiaowu/main/install.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"three_x_ui","category":"install","title":"3x-ui 在线安装","description":"下载 3x-ui 官方安装脚本后执行；安装面板、服务和防火墙配置前请确认服务器环境。","kind":"online","url":"https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh","interpreter":"bash","args":[],"risk":"warn","needs_root":true},
-    {"id":"dd_reinstall","category":"install","title":"一键 DD / 重装系统","description":"下载 bin456789/reinstall 的系统重装脚本；可能清空系统盘，执行前会显示高风险提示。","kind":"online","url":"https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
+    {"id":"dd_reinstall","category":"install","title":"一键 DD / 重装系统","description":"下载 bin456789/reinstall 的系统重装脚本；可能清空系统盘。","kind":"online","url":"https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"singbox_233","category":"install","title":"233boy sing-box 安装","description":"下载 233boy sing-box 安装脚本并进入原脚本菜单。","kind":"online","url":"https://github.com/233boy/sing-box/raw/main/install.sh","interpreter":"bash","args":[],"risk":"warn","needs_root":true},
     {"id":"xray_233","category":"install","title":"233boy Xray 安装","description":"下载 233boy Xray 安装脚本并进入原脚本菜单。","kind":"online","url":"https://github.com/233boy/Xray/raw/main/install.sh","interpreter":"bash","args":[],"risk":"warn","needs_root":true},
     {"id":"fnm_node","category":"install","title":"fnm + Node.js 22","description":"下载 fnm 安装器，安装 Node.js 22.11.0，并输出 node/npm 版本。","kind":"online","url":"https://fnm.vercel.app/install","interpreter":"bash","args":[],"mode":"fnm","risk":"warn","needs_root":false},
@@ -33,7 +33,7 @@
     {"id":"onepanel","category":"install","title":"1Panel 面板","description":"下载 1Panel 官方 v2 安装器；通常需要 Docker 和较多磁盘空间。","kind":"online","url":"https://resource.fit2cloud.com/1panel/package/v2/quick_start.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"casaos","category":"install","title":"CasaOS 面板","description":"下载 CasaOS 官方安装器；会安装或调整 Docker、Web 服务和端口。","kind":"online","url":"https://get.casaos.io","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
 
-    {"id":"fscarmen_vless_ws_tls","category":"fscarmen_vless","title":"安装 VLESS + WS + TLS（fsr 本地快照）","description":"调用仓库内固定的 fscarmen/sing-box v1.3.20 快照，复现上游主菜单 2（订阅 + Argo）并预选 i（vless + ws + tls）；保留端口、Argo、CDN、UUID、节点名等原始交互。会写入 /etc/sing-box、服务、Nginx 和防火墙。脚本入口本地化，但依赖、sing-box、cloudflared、证书和订阅模板仍需联网。","kind":"local_script","path":"scripts/fscarmen-vless-ws-tls.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
+    {"id":"fscarmen_singbox_menu","category":"fscarmen_singbox","title":"bash <(wget -qO- fscarmen/sing-box.sh) 完整菜单（本地克隆）","description":"对应 bash <(wget -qO- https://raw.githubusercontent.com/fscarmen/sing-box/main/sing-box.sh) 的完整原始菜单；TUI 实际执行仓库内 scripts/fscarmen-sing-box.sh，不依赖上游入口存在。脚本后续下载的系统依赖、sing-box、cloudflared、证书和订阅模板仍需要联网。","kind":"local_script","path":"scripts/fscarmen-sing-box.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
 
     {"id":"speedtest_cli","category":"speed_test","title":"1. Speedtest CLI 单次测速","description":"使用 speedtest-cli 兼容脚本测试当前延迟、下载和上传速度；需要 Python 3 和外网，结果受测速服务器影响。","kind":"online","url":"https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py","interpreter":"python3","args":["--simple"],"risk":"warn","needs_root":false},
     {"id":"yabs_full","category":"speed_test","title":"2. YABS 综合性能测速","description":"执行 YABS 综合测试：CPU、磁盘 I/O、Geekbench 和 iperf3 网络；在线下载测试资源，不需要 root，可能产生较多流量。","kind":"online","url":"https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh","interpreter":"bash","args":["-r"],"risk":"warn","needs_root":false},
