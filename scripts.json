@@ -11,7 +11,7 @@
     {"id": "advanced", "title": "高级工具"}
   ],
   "actions": [
-    {"id":"system_info","category":"overview","title":"系统信息与能力检测","description":"查看系统、内核、CPU、内存、磁盘、网卡和 TUI 识别到的管理方式。","kind":"builtin","risk":"safe","needs_root":false},
+    {"id":"system_info","category":"overview","title":"系统信息与能力检测","description":"查看系统、虚拟化类型、DMI 硬件、来宾可见 CPU、内存、磁盘、网卡和管理方式。虚拟机无法直接读取宿主机物理 CPU。","kind":"builtin","risk":"safe","needs_root":false},
     {"id":"port_audit","category":"overview","title":"端口与服务巡检","description":"查看监听端口、SSH 有效配置和主要 systemd 服务。","kind":"builtin","risk":"safe","needs_root":false},
     {"id":"swap_check","category":"overview","title":"Swap 状态","description":"只查看当前 Swap，不修改系统。","kind":"builtin","risk":"safe","needs_root":false},
     {"id":"recent_logs","category":"overview","title":"运行记录","description":"查看本面板最近下载、执行过的脚本和日志。","kind":"builtin","risk":"safe","needs_root":false},

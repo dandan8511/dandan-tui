@@ -97,6 +97,12 @@ daemon 重启。Compose 操作需要选择实际项目目录，支持 `compose.y
 `docker-compose.yml` 和 `docker-compose.yaml`；删除卷只在清理动作中明确选择后执行。另有
 可选的 `lazydocker` 官方二进制安装和启动入口，来源是 jesseduffield/lazydocker。
 
+“系统信息与能力检测”会显示发行版、初始化、包管理器、网络管理、启动模式和虚拟化环境；同时读取
+`lscpu` 与 `/proc/cpuinfo`，列出逻辑 CPU、厂商、具体型号、CPU family/model/stepping、插槽/核心/线程、
+频率、缓存、地址宽度、NUMA、指令集以及 Hypervisor 信息。还会读取可用的 DMI 厂商、产品型号、产品版本
+和主板型号，并用 `systemd-detect-virt` 区分虚拟机与容器。若运行在虚拟机中，报告会明确说明：程序只能
+看到宿主机暴露的 vCPU，不能从来宾系统直接读出宿主机的真实物理 CPU；DMI 和 CPU 信息也可能被云厂商隐藏。
+
 服务器配置分类包含 apt/apk 系统更新、SSH、Swap 和小硬盘日志策略。高级工具包含 Nginx
 SSL 证书管理、WebDAV、nft-forward、port-traffic-dog 和 GRUB 管理。SSL 使用 acme.sh，
 可从 Nginx `server_name` 扫描域名，支持 HTTP-01 和 Cloudflare/阿里云/腾讯云 DNS-01；

@@ -78,6 +78,38 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertEqual(window_tuning["path"], "scripts/nekoneko-tools.sh")
         self.assertTrue((ROOT / window_tuning["path"]).is_file())
 
+    def test_lscpu_parser_and_cpu_profile_fields(self):
+        sample = """Architecture: x86_64
+CPU(s): 4
+Vendor ID: GenuineIntel
+Model name: Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz
+CPU family: 6
+Model: 165
+Stepping: 5
+Thread(s) per core: 1
+Core(s) per socket: 4
+Socket(s): 1
+Hypervisor vendor: VMware
+Virtualization type: full
+L1d cache: 128 KiB (4 instances)
+Flags: fpu vmx avx2
+"""
+        parsed = tui.parse_lscpu(sample)
+        self.assertEqual(parsed["Model name"], "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz")
+        self.assertEqual(parsed["Hypervisor vendor"], "VMware")
+        self.assertEqual(parsed["Flags"], "fpu vmx avx2")
+
+        profile = tui.cpu_hardware_profile()
+        for field in ("逻辑 CPU", "CPU 架构", "CPU 厂商", "CPU 型号", "CPU 虚拟化支持", "指令集"):
+            self.assertIn(field, profile)
+            self.assertTrue(profile[field])
+
+    def test_virtualization_profile_has_detection_and_dmi_fields(self):
+        profile = tui.virtualization_profile({"虚拟化厂商": "未检测到", "指令集": ""})
+        for field in ("虚拟化环境", "运行形态", "虚拟机检测", "容器检测", "DMI 产品型号", "宿主机 CPU 读取"):
+            self.assertIn(field, profile)
+            self.assertTrue(profile[field])
+
     def test_tcp_brutal_repair_only_targets_supported_nodes(self):
         jsonc = '''{
   "inbounds": [{
