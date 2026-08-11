@@ -46,15 +46,18 @@ YJL_TUI_REF=提交SHA bash <(curl -fsSL "https://raw.githubusercontent.com/danda
 
 ## 猴哥 nft-forward 本地副本
 
-高级工具中的“猴哥 nft-forward 端口转发（本地副本）”执行仓库内的
-`scripts/nft-forward-install.sh`，本地克隆运行 TUI 时不会下载上游安装脚本；通过上述
-`launch.sh` 启动时，则从本仓库下载同一份快照到缓存目录再执行。该快照基于
-`xjetry/nft-forward` 的提交 `5c099fdd6000dbfb088387c8494fbbbfb1de5025`。
+高级工具中的“猴哥 nft-forward 端口转发（本地工具包）”执行仓库内
+`tools/nft-forward/install.sh`。同一目录固定包含 Release `v0.68.0` 的 `nft-agent`、
+`nft-server` 和 `SHA256SUMS`；本地克隆运行 TUI 时直接使用该目录，`launch.sh` 启动时则从
+本仓库下载整个工具包到缓存目录。默认安装会通过 `file://` 从该工具目录读取发布物并按
+`SHA256SUMS` 校验，不需要访问上游 install.sh 或该版本的 GitHub Release。
 
-脚本的 `update-script` 和安装后生成的 `nft-forward-upgrade` 会从
-`dandan8511/dandan-tui/scripts/nft-forward-install.sh` 更新自身，而非上游的 `install.sh`。
-`nft-agent`、`nft-server` 二进制 Release 仍由 `xjetry/nft-forward` 提供；因此上游删除
-安装脚本不会影响 TUI 入口或已安装机器的脚本更新，但删除二进制 Release 仍会影响安装与二进制升级。
+工具包的原始安装器快照来自 `xjetry/nft-forward` 的提交
+`5c099fdd6000dbfb088387c8494fbbbfb1de5025`，其 Release `v0.68.0` 的 `nft-agent`、
+`nft-server`、`SHA256SUMS` 已逐项校验并随本仓库保存。脚本的 `update-script` 和安装后生成的
+`nft-forward-upgrade` 会从 `dandan8511/dandan-tui/tools/nft-forward/install.sh` 更新自身，
+而非上游的 `install.sh`。要升级到未打包的新 Release，可显式传入 `--release <tag>`；这时才会
+从上游或通过 `NFTF_RELEASE_BASE_URL` 指定的发布源下载对应二进制。
 
 ## Docker 镜像源检测
 

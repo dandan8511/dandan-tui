@@ -5,13 +5,17 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_TOOLS_DIR="${NFTF_TOOLS_DIR:-$SCRIPT_DIR}"
+LOCAL_BUNDLE_TAG="${NFTF_LOCAL_BUNDLE_TAG:-v0.68.0}"
+
 # nft-forward releases remain upstream because xjetry publishes the binaries.
 REPO="xjetry/nft-forward"
 # The installer snapshot is owned by the TUI repository so upstream removal of
 # install.sh cannot break this TUI or a previously installed upgrade wrapper.
 SCRIPT_REPO="${NFTF_SCRIPT_REPO:-dandan8511/dandan-tui}"
 SCRIPT_REF="${NFTF_SCRIPT_REF:-main}"
-SCRIPT_FILE="${NFTF_SCRIPT_FILE:-scripts/nft-forward-install.sh}"
+SCRIPT_FILE="${NFTF_SCRIPT_FILE:-tools/nft-forward/install.sh}"
 RELEASE="${NFTF_RELEASE:-latest}"
 INSTALL_DIR="/usr/local/sbin"
 SYSTEMD_DIR="/etc/systemd/system"
@@ -330,6 +334,11 @@ looks_like_installer() {
 }
 
 persist_script() {
+  if looks_like_installer "${BASH_SOURCE[0]}"; then
+    install -m 0755 "${BASH_SOURCE[0]}" "$SCRIPT_PATH"
+    note "升级脚本已从本地 tools 副本保存到 $SCRIPT_PATH（后续升级: sudo nft-forward-upgrade）"
+    return 0
+  fi
   if curl -fsSL "$(script_url)" -o "$tmp/upgrade.sh" 2>/dev/null; then
     if looks_like_installer "$tmp/upgrade.sh"; then
       install -m 0755 "$tmp/upgrade.sh" "$SCRIPT_PATH"
@@ -641,6 +650,16 @@ if [[ -z "$GH_PROXY_EXPLICIT" && -z "${NFTF_GH_PROXY:-}" && -f "$GH_PROXY_FILE" 
   GH_PROXY="$(cat "$GH_PROXY_FILE" 2>/dev/null || true)"
 fi
 normalize_gh_proxy
+
+# A TUI-local or launcher-cached bundle always wins for the bundled v0.68.0
+# release. A deliberately requested different release or external base URL
+# continues to use the caller's source instead.
+if [[ -z "${NFTF_RELEASE_BASE_URL:-}" && ( "$RELEASE" == "latest" || "$RELEASE" == "$LOCAL_BUNDLE_TAG" ) \
+  && -f "$LOCAL_TOOLS_DIR/nft-agent" && -f "$LOCAL_TOOLS_DIR/nft-server" && -f "$LOCAL_TOOLS_DIR/SHA256SUMS" ]]; then
+  NFTF_RELEASE_BASE_URL="file://$LOCAL_TOOLS_DIR"
+  RELEASE="$LOCAL_BUNDLE_TAG"
+  note "使用本地 tools/nft-forward 发布包：$LOCAL_TOOLS_DIR ($LOCAL_BUNDLE_TAG)"
+fi
 
 [[ $EUID -eq 0 ]] || die "请以 root 运行（sudo $0 ...）"
 

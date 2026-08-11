@@ -1,4 +1,5 @@
 import json
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -127,7 +128,7 @@ class ConfigSmokeTests(unittest.TestCase):
         action = actions["nft_forward"]
         self.assertEqual(action["category"], "advanced")
         self.assertEqual(action["kind"], "local_script")
-        self.assertEqual(action["path"], "scripts/nft-forward-install.sh")
+        self.assertEqual(action["path"], "tools/nft-forward/install.sh")
         self.assertTrue(action["needs_root"])
 
         snapshot = ROOT / action["path"]
@@ -135,12 +136,29 @@ class ConfigSmokeTests(unittest.TestCase):
         source = snapshot.read_text(encoding="utf-8")
         self.assertIn('REPO="xjetry/nft-forward"', source)
         self.assertIn('SCRIPT_REPO="${NFTF_SCRIPT_REPO:-dandan8511/dandan-tui}"', source)
-        self.assertIn('SCRIPT_FILE="${NFTF_SCRIPT_FILE:-scripts/nft-forward-install.sh}"', source)
+        self.assertIn('SCRIPT_FILE="${NFTF_SCRIPT_FILE:-tools/nft-forward/install.sh}"', source)
         self.assertIn('https://raw.githubusercontent.com/$SCRIPT_REPO/$SCRIPT_REF/$SCRIPT_FILE', source)
+        self.assertIn('NFTF_RELEASE_BASE_URL="file://$LOCAL_TOOLS_DIR"', source)
+
+        tools = ROOT / "tools/nft-forward"
+        self.assertEqual(
+            hashlib.sha256((tools / "nft-agent").read_bytes()).hexdigest(),
+            "c7b0844a436a33e65ebfac7e18e29f0a6914e11d36737be1af49786a748aacec",
+        )
+        self.assertEqual(
+            hashlib.sha256((tools / "nft-server").read_bytes()).hexdigest(),
+            "669958f3fe02ef4c5e29deb109e3f8a5b57cb1fedefdfb895e0e416d01c73854",
+        )
+        self.assertEqual(
+            hashlib.sha256((tools / "SHA256SUMS").read_bytes()).hexdigest(),
+            "aff9af7c899cef812615815222df18bf6379782ed3ac8a567e813e2f4d21eb34",
+        )
 
         launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
-        self.assertIn("download scripts/nft-forward-install.sh", launcher)
-        self.assertIn("scripts/nft-forward-install.sh", launcher)
+        self.assertIn("download tools/nft-forward/install.sh", launcher)
+        self.assertIn("download tools/nft-forward/nft-agent", launcher)
+        self.assertIn("download tools/nft-forward/nft-server", launcher)
+        self.assertIn("tools/nft-forward/SHA256SUMS", launcher)
 
     def test_lscpu_parser_and_cpu_profile_fields(self):
         sample = """Architecture: x86_64
