@@ -112,6 +112,16 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertNotIn("YJL-TUI", source)
         self.assertNotIn("--YJL-TUI-VLESS-WS-TLS", source)
 
+    def test_docker_mirror_switch_is_local_docker_menu_entry(self):
+        actions = {action["id"]: action for action in self.config["actions"]}
+        action = actions["docker_mirror_switch"]
+        self.assertEqual(action["category"], "docker_manage")
+        self.assertEqual(action["kind"], "local_script")
+        self.assertEqual(action["path"], "scripts/docker-mirror-switch.sh")
+        self.assertEqual(action["title"], "16. 国内 Docker 源检测")
+        self.assertTrue(action["needs_root"])
+        self.assertTrue((ROOT / action["path"]).is_file())
+
     def test_lscpu_parser_and_cpu_profile_fields(self):
         sample = """Architecture: x86_64
 CPU(s): 4
@@ -218,6 +228,7 @@ class LocalBehaviorTests(unittest.TestCase):
         subprocess.run(["bash", "-n", "scripts/nekoneko-tools.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/fscarmen-sing-box.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/tcpfit/tcpfit.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/docker-mirror-switch.sh"], cwd=ROOT, check=True)
         subprocess.run([sys.executable, "-m", "py_compile", "tui.py"], cwd=ROOT, check=True)
 
     def test_noninteractive_commands(self):

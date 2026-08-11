@@ -35,7 +35,7 @@ bash <(curl -fsSL "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/
 bash <(wget -qO- "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 ```
 
-`launch.sh` 每次从 `main` 下载 TUI 本体、菜单配置、本地 TCP 脚本及 fscarmen、tcpfit 的本地快照到
+`launch.sh` 每次从 `main` 下载 TUI 本体、菜单配置、本地 TCP 脚本、Docker 镜像源检测脚本及 fscarmen、tcpfit 的本地快照到
 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动。要固定某个版本：
 
 ```bash
@@ -43,6 +43,30 @@ YJL_TUI_REF=提交SHA bash <(curl -fsSL "https://raw.githubusercontent.com/danda
 ```
 
 需要 `bash` 和 `python3`；在线安装或检测按动作需要 `curl`、`wget`、`openssl`、`iproute2` 等工具。
+
+## Docker 镜像源检测
+
+Docker 管理分类的 `16. 国内 Docker 源检测` 运行仓库内
+[`scripts/docker-mirror-switch.sh`](scripts/docker-mirror-switch.sh)。默认的交互流程仅先检查候选源
+能否完成 Docker Registry v2 鉴权和 manifest 下载；后续真实拉取、写入 Docker 配置、重启服务均会再次
+询问确认。脚本只接受 Docker Hub 测试镜像，且只会改写 `/etc/docker/daemon.json` 的
+`registry-mirrors` 字段，原文件会在应用前按时间戳备份。
+
+在 TUI 外也可以直接运行：
+
+```bash
+# 仅检查 Registry API，不拉镜像、不改配置
+sudo bash scripts/docker-mirror-switch.sh --check
+
+# 真实拉取验证，但不改配置
+sudo bash scripts/docker-mirror-switch.sh --verify-pull
+
+# 验证后备份、写入镜像源并重启 Docker
+sudo bash scripts/docker-mirror-switch.sh --apply
+```
+
+单个真实拉取默认 90 秒超时，拉取通过的测试标签会自动删除。`registry-mirrors` 只加速 Docker Hub
+引用，例如 `alpine`、`nginx`、`mysql:5.7`；它不会代理明确写成 `ghcr.io/...` 或 `quay.io/...` 的镜像。
 
 ## sing-box(fsr)
 
