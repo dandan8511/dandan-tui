@@ -80,9 +80,10 @@ download scripts.json
 download tcp_profiles.json
 download scripts/install-tcp-brutal.sh
 download scripts/fscarmen-sing-box.sh
+download scripts/tcpfit/tcpfit.sh
 chmod 700 "${TEMP_DIR}/run.sh"
 chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/fscarmen-sing-box.sh"
-chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh"
+chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${TEMP_DIR}/scripts/tcpfit/tcpfit.sh"
 mv -f -- "${TEMP_DIR}/run.sh" "${CACHE_ROOT}/run.sh"
 mv -f -- "${TEMP_DIR}/tui.py" "${CACHE_ROOT}/tui.py"
 mv -f -- "${TEMP_DIR}/scripts.json" "${CACHE_ROOT}/scripts.json"
@@ -90,5 +91,7 @@ mv -f -- "${TEMP_DIR}/tcp_profiles.json" "${CACHE_ROOT}/tcp_profiles.json"
 mkdir -p -- "${CACHE_ROOT}/scripts"
 mv -f -- "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${CACHE_ROOT}/scripts/install-tcp-brutal.sh"
 mv -f -- "${TEMP_DIR}/scripts/fscarmen-sing-box.sh" "${CACHE_ROOT}/scripts/fscarmen-sing-box.sh"
+mkdir -p -- "${CACHE_ROOT}/scripts/tcpfit"
+mv -f -- "${TEMP_DIR}/scripts/tcpfit/tcpfit.sh" "${CACHE_ROOT}/scripts/tcpfit/tcpfit.sh"
 
 exec bash "${CACHE_ROOT}/run.sh" "$@"

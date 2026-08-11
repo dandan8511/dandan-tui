@@ -64,6 +64,23 @@ class ConfigSmokeTests(unittest.TestCase):
         for protocol in ("ShadowTLS", "Shadowsocks", "Trojan", "VMess + WS", "VLESS + WS + TLS", "H2 + Reality", "gRPC + Reality"):
             self.assertIn(protocol, actions[0]["description"])
 
+    def test_tcpfit_is_vendored_tcp_menu_entry(self):
+        actions = {action["id"]: action for action in self.config["actions"]}
+        self.assertNotIn("tcp_exit", actions)
+        action = actions["tcpfit"]
+        self.assertEqual(action["category"], "tcp_tuning")
+        self.assertEqual(action["kind"], "local_script")
+        self.assertEqual(action["path"], "scripts/tcpfit/tcpfit.sh")
+        self.assertEqual(action["interpreter"], "bash")
+        self.assertTrue(action["needs_root"])
+        self.assertIn("99.", action["title"])
+
+        snapshot = ROOT / action["path"]
+        self.assertTrue(snapshot.is_file())
+        source = snapshot.read_text(encoding="utf-8")
+        self.assertIn('VERSION="0.5.3"', source)
+        self.assertIn('STATE_DIR="/var/lib/tcpfit"', source)
+
     def test_nodeseek_menu_actions(self):
         categories = {category["id"]: category["title"] for category in self.config["categories"]}
         self.assertEqual(categories.get("nodeseek"), "Nodeseek论坛")
@@ -200,6 +217,7 @@ class LocalBehaviorTests(unittest.TestCase):
         subprocess.run(["bash", "-n", "scripts/install-tcp-brutal.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/nekoneko-tools.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/fscarmen-sing-box.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/tcpfit/tcpfit.sh"], cwd=ROOT, check=True)
         subprocess.run([sys.executable, "-m", "py_compile", "tui.py"], cwd=ROOT, check=True)
 
     def test_noninteractive_commands(self):

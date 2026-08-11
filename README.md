@@ -35,7 +35,7 @@ bash <(curl -fsSL "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/
 bash <(wget -qO- "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 ```
 
-`launch.sh` 每次从 `main` 下载 TUI 本体、菜单配置、本地 TCP 脚本及 fscarmen 的本地快照到
+`launch.sh` 每次从 `main` 下载 TUI 本体、菜单配置、本地 TCP 脚本及 fscarmen、tcpfit 的本地快照到
 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动。要固定某个版本：
 
 ```bash
@@ -87,6 +87,39 @@ git push
 ```
 
 菜单、`launch.sh` 和测试均固定引用 `scripts/fscarmen-sing-box.sh`，正常上游更新不需要再改 TUI 代码。
+
+## tcpfit 实测 TCP 调优
+
+TCP 调优分类的 `99. tcpfit 实测 TCP 调优（本地副本）` 对应
+[Kylin010/tcpfit](https://github.com/Kylin010/tcpfit)。完整上游快照保存在
+`scripts/tcpfit/`，TUI 实际执行 `scripts/tcpfit/tcpfit.sh`，不使用在线管道脚本。
+本次固定的来源为：
+
+```text
+upstream commit: 3e285932e5f212eef9be9591ebba9a78a3b4d1c7
+upstream date:   2026-08-10
+script version:  0.5.3
+sha256:          6c86b31c3d937736bb4d919b04b732013cbb2da958d97841b34cd663fd2a6b35
+license:         MIT (Kylin010)
+```
+
+它根据带宽、BDP 和可选的 `iperf3` 实测推导参数。调优会写入 sysctl、队列规则与 systemd
+配置，因此菜单要求 root 且属于高风险动作；首次修改前会保存快照，原菜单提供 `rollback` 回滚。
+远端使用 `launch.sh` 时只会下载执行所需的 `tcpfit.sh`，而 GitHub 仓库保留完整上游快照、许可证、
+安装器和多机编排示例。
+
+### 更新快照
+
+先确认候选提交与语法，再从临时克隆导出工作树（不要把嵌套 `.git` 目录提交进本仓库）：
+
+```bash
+git clone --depth 1 https://github.com/Kylin010/tcpfit.git /tmp/tcpfit
+git -C /tmp/tcpfit log -1 --format='%H %cs %s'
+bash -n /tmp/tcpfit/tcpfit.sh
+sha256sum /tmp/tcpfit/tcpfit.sh
+git -C /tmp/tcpfit archive --format=tar HEAD | tar -xf - -C scripts/tcpfit
+python3 -m unittest discover -s tests -v
+```
 
 ## 运行数据
 
