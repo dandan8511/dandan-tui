@@ -35,7 +35,7 @@ bash <(curl -fsSL "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/
 bash <(wget -qO- "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 ```
 
-`launch.sh` 每次从 `main` 下载 TUI 本体、菜单配置、本地 TCP 脚本、Docker 镜像源检测脚本及 fscarmen、tcpfit 的本地快照到
+`launch.sh` 每次从 `main` 下载 TUI 本体、菜单配置、本地 TCP 脚本、Docker 镜像源检测脚本，以及 fscarmen、tcpfit、nft-forward 的本地快照到
 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动。要固定某个版本：
 
 ```bash
@@ -43,6 +43,18 @@ YJL_TUI_REF=提交SHA bash <(curl -fsSL "https://raw.githubusercontent.com/danda
 ```
 
 需要 `bash` 和 `python3`；在线安装或检测按动作需要 `curl`、`wget`、`openssl`、`iproute2` 等工具。
+
+## 猴哥 nft-forward 本地副本
+
+高级工具中的“猴哥 nft-forward 端口转发（本地副本）”执行仓库内的
+`scripts/nft-forward-install.sh`，本地克隆运行 TUI 时不会下载上游安装脚本；通过上述
+`launch.sh` 启动时，则从本仓库下载同一份快照到缓存目录再执行。该快照基于
+`xjetry/nft-forward` 的提交 `5c099fdd6000dbfb088387c8494fbbbfb1de5025`。
+
+脚本的 `update-script` 和安装后生成的 `nft-forward-upgrade` 会从
+`dandan8511/dandan-tui/scripts/nft-forward-install.sh` 更新自身，而非上游的 `install.sh`。
+`nft-agent`、`nft-server` 二进制 Release 仍由 `xjetry/nft-forward` 提供；因此上游删除
+安装脚本不会影响 TUI 入口或已安装机器的脚本更新，但删除二进制 Release 仍会影响安装与二进制升级。
 
 ## Docker 镜像源检测
 

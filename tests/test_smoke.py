@@ -122,6 +122,26 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertTrue(action["needs_root"])
         self.assertTrue((ROOT / action["path"]).is_file())
 
+    def test_nft_forward_is_vendored_advanced_menu_entry(self):
+        actions = {action["id"]: action for action in self.config["actions"]}
+        action = actions["nft_forward"]
+        self.assertEqual(action["category"], "advanced")
+        self.assertEqual(action["kind"], "local_script")
+        self.assertEqual(action["path"], "scripts/nft-forward-install.sh")
+        self.assertTrue(action["needs_root"])
+
+        snapshot = ROOT / action["path"]
+        self.assertTrue(snapshot.is_file())
+        source = snapshot.read_text(encoding="utf-8")
+        self.assertIn('REPO="xjetry/nft-forward"', source)
+        self.assertIn('SCRIPT_REPO="${NFTF_SCRIPT_REPO:-dandan8511/dandan-tui}"', source)
+        self.assertIn('SCRIPT_FILE="${NFTF_SCRIPT_FILE:-scripts/nft-forward-install.sh}"', source)
+        self.assertIn('https://raw.githubusercontent.com/$SCRIPT_REPO/$SCRIPT_REF/$SCRIPT_FILE', source)
+
+        launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
+        self.assertIn("download scripts/nft-forward-install.sh", launcher)
+        self.assertIn("scripts/nft-forward-install.sh", launcher)
+
     def test_lscpu_parser_and_cpu_profile_fields(self):
         sample = """Architecture: x86_64
 CPU(s): 4
