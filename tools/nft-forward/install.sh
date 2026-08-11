@@ -8,6 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_TOOLS_DIR="${NFTF_TOOLS_DIR:-$SCRIPT_DIR}"
 LOCAL_BUNDLE_TAG="${NFTF_LOCAL_BUNDLE_TAG:-v0.68.0}"
+RELEASE_EXPLICIT=0
 
 # nft-forward releases remain upstream because xjetry publishes the binaries.
 REPO="xjetry/nft-forward"
@@ -41,6 +42,38 @@ normalize_gh_proxy() {
 # raw.githubusercontent base for the vendored script itself (self / update-script).
 script_url() {
   echo "${GH_PROXY}https://raw.githubusercontent.com/$SCRIPT_REPO/$SCRIPT_REF/$SCRIPT_FILE"
+}
+
+local_bundle_url() {
+  if [[ -n "${NFTF_TOOLS_BASE_URL:-}" ]]; then
+    printf '%s\n' "${NFTF_TOOLS_BASE_URL%/}"
+  else
+    printf '%s\n' "${GH_PROXY}https://raw.githubusercontent.com/$SCRIPT_REPO/$SCRIPT_REF/tools/nft-forward"
+  fi
+}
+
+has_local_bundle() {
+  [[ -f "$LOCAL_TOOLS_DIR/nft-agent" && -f "$LOCAL_TOOLS_DIR/nft-server" && -f "$LOCAL_TOOLS_DIR/SHA256SUMS" ]]
+}
+
+fetch_local_bundle() {
+  local base tmp asset
+  has_local_bundle && return 0
+  mkdir -p "$LOCAL_TOOLS_DIR" || return 1
+  [[ -w "$LOCAL_TOOLS_DIR" ]] || return 1
+  base="$(local_bundle_url)"
+  tmp="$(mktemp -d "$LOCAL_TOOLS_DIR/.nft-forward.download.XXXXXX")"
+  note "从你的 tools/nft-forward 下载本地工具包 ..."
+  for asset in SHA256SUMS nft-agent nft-server; do
+    curl -fL --retry 3 --connect-timeout 20 --max-time 1800 "$base/$asset" -o "$tmp/$asset" \
+      || { rm -rf "$tmp"; warn "工具包下载失败: $base/$asset"; return 1; }
+  done
+  (cd "$tmp" && sha256sum -c SHA256SUMS) || { rm -rf "$tmp"; warn "本地工具包 SHA256 校验失败"; return 1; }
+  install -m 0600 "$tmp/SHA256SUMS" "$LOCAL_TOOLS_DIR/SHA256SUMS"
+  install -m 0700 "$tmp/nft-agent" "$LOCAL_TOOLS_DIR/nft-agent"
+  install -m 0700 "$tmp/nft-server" "$LOCAL_TOOLS_DIR/nft-server"
+  rm -rf "$tmp"
+  note "本地工具包已缓存: $LOCAL_TOOLS_DIR"
 }
 
 write_daemon_unit() {
@@ -651,16 +684,6 @@ if [[ -z "$GH_PROXY_EXPLICIT" && -z "${NFTF_GH_PROXY:-}" && -f "$GH_PROXY_FILE" 
 fi
 normalize_gh_proxy
 
-# A TUI-local or launcher-cached bundle always wins for the bundled v0.68.0
-# release. A deliberately requested different release or external base URL
-# continues to use the caller's source instead.
-if [[ -z "${NFTF_RELEASE_BASE_URL:-}" && ( "$RELEASE" == "latest" || "$RELEASE" == "$LOCAL_BUNDLE_TAG" ) \
-  && -f "$LOCAL_TOOLS_DIR/nft-agent" && -f "$LOCAL_TOOLS_DIR/nft-server" && -f "$LOCAL_TOOLS_DIR/SHA256SUMS" ]]; then
-  NFTF_RELEASE_BASE_URL="file://$LOCAL_TOOLS_DIR"
-  RELEASE="$LOCAL_BUNDLE_TAG"
-  note "使用本地 tools/nft-forward 发布包：$LOCAL_TOOLS_DIR ($LOCAL_BUNDLE_TAG)"
-fi
-
 [[ $EUID -eq 0 ]] || die "请以 root 运行（sudo $0 ...）"
 
 # 架构检测
@@ -759,6 +782,16 @@ fi
 if [[ "$mode" == "update-script" ]]; then
   do_update_script
   exit 0
+fi
+
+# Default installation/update is deliberately lazy: launch.sh downloads only
+# this installer. Entering this menu fetches the binary bundle from the user's
+# repository once, verifies it, and then uses the cached file:// source.
+if [[ -z "${NFTF_RELEASE_BASE_URL:-}" && "$RELEASE" == "latest" && $RELEASE_EXPLICIT -eq 0 ]]; then
+  fetch_local_bundle || die "未能从你的 tools/nft-forward 获取完整本地工具包；未回退到上游 Release。"
+  NFTF_RELEASE_BASE_URL="file://$LOCAL_TOOLS_DIR"
+  RELEASE="$LOCAL_BUNDLE_TAG"
+  note "使用本地 tools/nft-forward 发布包：$LOCAL_TOOLS_DIR ($LOCAL_BUNDLE_TAG)"
 fi
 
 # Update is its own code path: no role unit changes, only binary swap.

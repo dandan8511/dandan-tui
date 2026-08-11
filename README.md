@@ -48,9 +48,10 @@ YJL_TUI_REF=提交SHA bash <(curl -fsSL "https://raw.githubusercontent.com/danda
 
 高级工具中的“猴哥 nft-forward 端口转发（本地工具包）”执行仓库内
 `tools/nft-forward/install.sh`。同一目录固定包含 Release `v0.68.0` 的 `nft-agent`、
-`nft-server` 和 `SHA256SUMS`；本地克隆运行 TUI 时直接使用该目录，`launch.sh` 启动时则从
-本仓库下载整个工具包到缓存目录。默认安装会通过 `file://` 从该工具目录读取发布物并按
-`SHA256SUMS` 校验，不需要访问上游 install.sh 或该版本的 GitHub Release。
+`nft-server` 和 `SHA256SUMS`；本地克隆运行 TUI 时直接使用该目录。`launch.sh` 启动时仅下载
+约 37 KB 的安装器；只有进入该菜单、且缓存内没有工具包时，安装器才从本仓库下载二进制和
+`SHA256SUMS` 到缓存目录。默认安装会通过 `file://` 从该工具目录读取发布物并按校验文件验证，
+不需要访问上游 install.sh 或该版本的 GitHub Release。
 
 工具包的原始安装器快照来自 `xjetry/nft-forward` 的提交
 `5c099fdd6000dbfb088387c8494fbbbfb1de5025`，其 Release `v0.68.0` 的 `nft-agent`、

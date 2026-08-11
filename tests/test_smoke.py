@@ -139,6 +139,8 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertIn('SCRIPT_FILE="${NFTF_SCRIPT_FILE:-tools/nft-forward/install.sh}"', source)
         self.assertIn('https://raw.githubusercontent.com/$SCRIPT_REPO/$SCRIPT_REF/$SCRIPT_FILE', source)
         self.assertIn('NFTF_RELEASE_BASE_URL="file://$LOCAL_TOOLS_DIR"', source)
+        self.assertIn("fetch_local_bundle || die", source)
+        self.assertIn("未回退到上游 Release", source)
 
         tools = ROOT / "tools/nft-forward"
         self.assertEqual(
@@ -156,9 +158,9 @@ class ConfigSmokeTests(unittest.TestCase):
 
         launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
         self.assertIn("download tools/nft-forward/install.sh", launcher)
-        self.assertIn("download tools/nft-forward/nft-agent", launcher)
-        self.assertIn("download tools/nft-forward/nft-server", launcher)
-        self.assertIn("tools/nft-forward/SHA256SUMS", launcher)
+        self.assertNotIn("download tools/nft-forward/nft-agent", launcher)
+        self.assertNotIn("download tools/nft-forward/nft-server", launcher)
+        self.assertNotIn("download tools/nft-forward/SHA256SUMS", launcher)
 
     def test_lscpu_parser_and_cpu_profile_fields(self):
         sample = """Architecture: x86_64
