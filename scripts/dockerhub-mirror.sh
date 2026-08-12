@@ -173,10 +173,10 @@ server_install() {
   else
     printf 'Registry API：暂未通过，请检查防火墙、端口和 URL。\n' >&2
   fi
-  if curl -fsS --max-time 90 \
-    -H 'Accept: application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json' \
-    "$public_url/v2/$IMAGE_REPOSITORY/manifests/$IMAGE_REFERENCE" >/dev/null; then
-    printf 'Docker Hub 缓存验证：%s manifest 已经由 Registry 代理获取\n' "$TEST_IMAGE"
+  local local_test_image="127.0.0.1:$PORT/$IMAGE_REPOSITORY:$IMAGE_REFERENCE"
+  if docker pull "$local_test_image"; then
+    printf 'Docker Hub 缓存验证：已通过 %s 经本机 Registry 的真实拉取\n' "$TEST_IMAGE"
+    docker image rm "$local_test_image" >/dev/null 2>&1 || true
   else
     printf 'Docker Hub 缓存验证未通过；容器仍已启动，请检查 Registry 日志和 Docker Hub 连通性。\n' >&2
   fi
