@@ -42,6 +42,7 @@ class ConfigSmokeTests(unittest.TestCase):
             "docker_logs", "docker_start", "docker_stop", "docker_restart", "docker_exec",
             "docker_pull", "docker_remove", "docker_compose", "docker_prune",
             "docker_daemon_restart", "lazydocker", "custom_script",
+            "dockerhub_mirror",
         }
         supported_kinds = {"online", "local_script", "tcp_online", "exit"}
         missing = []
@@ -269,6 +270,7 @@ class LocalBehaviorTests(unittest.TestCase):
         subprocess.run(["bash", "-n", "scripts/fscarmen-sing-box.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/tcpfit/tcpfit.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/docker-mirror-switch.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/dockerhub-mirror.sh"], cwd=ROOT, check=True)
         subprocess.run([sys.executable, "-m", "py_compile", "tui.py"], cwd=ROOT, check=True)
 
     def test_noninteractive_commands(self):
@@ -286,6 +288,7 @@ class LocalBehaviorTests(unittest.TestCase):
         self.assertIn("warp", listing.stdout)
         self.assertIn("onepanel", listing.stdout)
         self.assertIn("fscarmen_singbox_menu", listing.stdout)
+        self.assertIn("dockerhub_mirror", listing.stdout)
         self.assertNotIn("[danger]", listing.stdout)
         self.assertNotIn("[warn]", listing.stdout)
         self.assertNotIn("[safe]", listing.stdout)

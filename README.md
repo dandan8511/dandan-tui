@@ -84,6 +84,29 @@ sudo bash scripts/docker-mirror-switch.sh --apply
 单个真实拉取默认 90 秒超时，拉取通过的测试标签会自动删除。`registry-mirrors` 只加速 Docker Hub
 引用，例如 `alpine`、`nginx`、`mysql:5.7`；它不会代理明确写成 `ghcr.io/...` 或 `quay.io/...` 的镜像。
 
+## Docker Hub Mirror 服务端
+
+Docker 管理分类的 `17. 本机部署 Docker Hub Mirror` 部署官方 `registry:2` 的
+pull-through cache。它适合放在国外 OVH 服务器：第一次拉取由 OVH 访问 Docker Hub，后续国内机器
+从 OVH 读取已缓存层。脚本会在 `10305-10307` 中检查 TCP 和 UDP 后自动选择空闲端口，也可以用
+`--port` 指定；缓存默认保存在 `/var/lib/dockerhub-mirror/data`。
+
+服务端先准备域名和 HTTPS（或仅限源站 IP 的防火墙规则），然后执行：
+
+```bash
+sudo bash scripts/dockerhub-mirror.sh --server --port 10305 --public-url https://mirror.example.com
+```
+
+没有域名时可以临时使用 HTTP，但必须在国内客户端显式加 `--insecure`，例如：
+
+```bash
+sudo bash scripts/dockerhub-mirror.sh --client --mirror http://OVH_IP:10305 --insecure
+```
+
+HTTP 不加密且容易被滥用，建议只用于验证；公网长期运行应使用 HTTPS，并在 OVH 防火墙只放行
+国内服务器 IP。服务端 `--status` 查看容器，`--uninstall` 只删除容器而保留缓存数据。Mirror 仅
+处理 Docker Hub 引用，不会代理 `ghcr.io`、`quay.io` 等其他 Registry。
+
 ## sing-box(fsr)
 
 该分类右侧的完整菜单对应：
