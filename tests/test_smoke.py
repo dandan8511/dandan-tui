@@ -124,6 +124,17 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertTrue(action["needs_root"])
         self.assertTrue((ROOT / action["path"]).is_file())
 
+    def test_dockerhub_mirror_management_contract(self):
+        actions = {action["id"]: action for action in self.config["actions"]}
+        action = actions["dockerhub_mirror"]
+        self.assertEqual(action["category"], "docker_manage")
+        self.assertEqual(action["path"], "scripts/dockerhub-mirror.sh")
+        source = (ROOT / action["path"]).read_text(encoding="utf-8")
+        for flag in ("--cache-list", "--delete-repository", "--clear-cache", "--configure-policy", "--policy-run"):
+            self.assertIn(flag, source)
+        self.assertIn("garbage-collect", source)
+        self.assertIn("dockerhub-mirror-cleanup.timer", source)
+
     def test_nft_forward_is_vendored_advanced_menu_entry(self):
         actions = {action["id"]: action for action in self.config["actions"]}
         action = actions["nft_forward"]

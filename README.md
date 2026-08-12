@@ -107,6 +107,27 @@ HTTP 不加密且容易被滥用，建议只用于验证；公网长期运行应
 国内服务器 IP。服务端 `--status` 查看容器，`--uninstall` 只删除容器而保留缓存数据。Mirror 仅
 处理 Docker Hub 引用，不会代理 `ghcr.io`、`quay.io` 等其他 Registry。
 
+### 缓存管理
+
+17 号菜单还提供缓存管理：可列出已缓存仓库、选择删除例如 `library/redis`，停止 Mirror 后运行
+Registry 垃圾回收，再启动 Mirror。删除只影响 OVH 缓存，不影响任何客户端已拉取的镜像。缓存总目录是
+`/var/lib/dockerhub-mirror/data`。自动策略按每天 04:25 执行：可设缓存总限额和保留天数；达到任一条件
+时会短暂停止 Mirror、清空**整库**缓存、再重新启动。官方 pull-through cache 没有安全的按镜像 LRU 或
+按镜像过期机制，所以这里明确使用整库轮换，不会假装只删除某个“最旧镜像”。
+
+命令行也可使用：
+
+```bash
+# 查看缓存仓库和总占用
+sudo bash scripts/dockerhub-mirror.sh --cache-list
+
+# 删除 Redis 缓存仓库并回收无引用 layer
+sudo bash scripts/dockerhub-mirror.sh --delete-repository library/redis
+
+# 设为超过 1 GiB 或超过 14 天时，定时清空全部 Mirror 缓存
+sudo bash scripts/dockerhub-mirror.sh --configure-policy --max-cache-gb 1 --expire-days 14
+```
+
 ## sing-box(fsr)
 
 该分类右侧的完整菜单对应：
