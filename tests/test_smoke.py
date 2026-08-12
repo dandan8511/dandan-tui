@@ -33,6 +33,12 @@ class ConfigSmokeTests(unittest.TestCase):
             "https://resource.fit2cloud.com/1panel/package/v2/quick_start.sh",
         )
 
+    def test_launcher_downloads_nginx_module(self):
+        launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
+        self.assertIn("download nginx_manager.py", launcher)
+        self.assertIn('"${TEMP_DIR}/nginx_manager.py"', launcher)
+        self.assertIn('"${CACHE_ROOT}/nginx_manager.py"', launcher)
+
     def test_each_action_has_dispatch_or_supported_kind(self):
         source = (ROOT / "tui.py").read_text(encoding="utf-8")
         special_ids = {
@@ -41,7 +47,7 @@ class ConfigSmokeTests(unittest.TestCase):
             "tcp_status", "tcp_remove_all", "docker_status", "docker_containers", "docker_images",
             "docker_logs", "docker_start", "docker_stop", "docker_restart", "docker_exec",
             "docker_pull", "docker_remove", "docker_compose", "docker_prune",
-            "docker_daemon_restart", "lazydocker", "custom_script",
+            "docker_daemon_restart", "lazydocker", "custom_script", "nginx_manager",
             "dockerhub_mirror",
         }
         supported_kinds = {"online", "local_script", "tcp_online", "exit"}
@@ -56,6 +62,25 @@ class ConfigSmokeTests(unittest.TestCase):
             if action["id"] not in source:
                 missing.append(action["id"])
         self.assertEqual(missing, [])
+
+    def test_nginx_parser_and_validation(self):
+        sample = """# configuration file /etc/nginx/conf.d/demo.conf:\nserver {\n    listen 10301 ssl;\n    server_name demo.example.com;\n    root /var/www/demo;\n    ssl_certificate /etc/letsencrypt/live/demo/fullchain.pem;\n    location / { proxy_pass http://127.0.0.1:9000; }\n}\n"""
+        sites = tui.nginx_manager.parse_sites(sample)
+        self.assertEqual(len(sites), 1)
+        self.assertEqual(sites[0].server_name, ["demo.example.com"])
+        self.assertIn("10301", sites[0].listen)
+        self.assertEqual(sites[0].root, "/var/www/demo")
+        self.assertEqual(sites[0].proxy_pass, "http://127.0.0.1:9000")
+        self.assertTrue(tui.nginx_manager.valid_domain("demo.example.com"))
+        self.assertFalse(tui.nginx_manager.valid_domain("not a domain"))
+        self.assertTrue(tui.nginx_manager.valid_port("10301"))
+        self.assertFalse(tui.nginx_manager.valid_port("70000"))
+
+    def test_nginx_stages_an_included_conf_before_replacing(self):
+        source = (ROOT / "nginx_manager.py").read_text(encoding="utf-8")
+        self.assertIn("yjl-tui-stage-", source)
+        self.assertIn("certbot.timer", source)
+        self.assertIn('["certbot", "renew", "--dry-run"]', source)
 
     def test_tcp_brutal_is_first_local_action(self):
         actions = [action for action in self.config["actions"] if action.get("category") == "tcp_tuning"]

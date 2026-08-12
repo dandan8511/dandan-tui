@@ -76,6 +76,7 @@ fi
 
 download run.sh
 download tui.py
+download nginx_manager.py
 download scripts.json
 download tcp_profiles.json
 download scripts/install-tcp-brutal.sh
@@ -85,11 +86,12 @@ download scripts/docker-mirror-switch.sh
 download scripts/dockerhub-mirror.sh
 download tools/nft-forward/install.sh
 chmod 700 "${TEMP_DIR}/run.sh"
-chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/fscarmen-sing-box.sh"
+chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/nginx_manager.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/fscarmen-sing-box.sh"
 chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${TEMP_DIR}/scripts/tcpfit/tcpfit.sh" "${TEMP_DIR}/scripts/docker-mirror-switch.sh" "${TEMP_DIR}/tools/nft-forward/install.sh"
 chmod 700 "${TEMP_DIR}/scripts/dockerhub-mirror.sh"
 mv -f -- "${TEMP_DIR}/run.sh" "${CACHE_ROOT}/run.sh"
 mv -f -- "${TEMP_DIR}/tui.py" "${CACHE_ROOT}/tui.py"
+mv -f -- "${TEMP_DIR}/nginx_manager.py" "${CACHE_ROOT}/nginx_manager.py"
 mv -f -- "${TEMP_DIR}/scripts.json" "${CACHE_ROOT}/scripts.json"
 mv -f -- "${TEMP_DIR}/tcp_profiles.json" "${CACHE_ROOT}/tcp_profiles.json"
 mkdir -p -- "${CACHE_ROOT}/scripts"

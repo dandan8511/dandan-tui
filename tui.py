@@ -14,6 +14,9 @@ import sys
 import time
 from pathlib import Path
 
+import nginx_manager
+from nginx_manager import run_nginx_manager
+
 APP_DIR = Path(__file__).resolve().parent
 WORKSPACE = APP_DIR.parent
 CONFIG = APP_DIR / "scripts.json"
@@ -2232,6 +2235,9 @@ done'''
             input("\n按 Enter 返回菜单...")
         elif action["id"] == "ssl_manage":
             rc = self.ssl_manage(log)
+            input("\n按 Enter 返回菜单...")
+        elif action["id"] == "nginx_manager":
+            rc = run_nginx_manager(STATE)
             input("\n按 Enter 返回菜单...")
         elif action["id"] == "network_manage":
             rc = self.network_manage(log)

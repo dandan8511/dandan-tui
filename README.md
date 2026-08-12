@@ -21,6 +21,21 @@
 `scripts/fscarmen-sing-box.sh`，不需要从 fscarmen 下载入口脚本。涉及安装、网络、内核、服务、
 证书或防火墙的动作应以 root 运行；fscarmen 菜单后续下载依赖时仍需要网络。
 
+## Nginx 管理工具
+
+“服务器配置”分类中的“Nginx 管理工具”只管理当前 VPS。本机每次进入都会实时执行
+`nginx -t`、`nginx -T`、`ss -lntup` 和 `systemctl is-active nginx`，先展示本机域名、站点配置文件、
+监听端口、静态目录、反代上游、证书和服务状态。
+
+菜单支持刷新扫描、查看站点原始配置、新建反向代理站点，以及证书申请和自动续期。创建新站点时会拒绝
+已监听的 TCP 端口，先把临时 `.conf` 放入 `/etc/nginx/conf.d/` 参与 `nginx -t`，通过后才原子替换并
+reload；失败会把新文件移入 `/var/backups/yjl-tui/nginx/`，不覆盖现有业务。
+
+证书统一使用本机 `certbot`：申请成功后启用 `certbot.timer`，并执行 `certbot renew --dry-run` 验证自动
+续期链路。HTTP-01 要求域名公网 TCP 80 可访问；Cloudflare DNS-01 需要安装
+`python3-certbot-dns-cloudflare`，Token 会写入 `/etc/letsencrypt/yjl-tui/` 下的 `0600` 凭据文件，供
+后续定时续期使用。Token 不写入 TUI 日志。
+
 ## VPS 启动
 
 GitHub 仓库：`https://github.com/dandan8511/dandan-tui`
