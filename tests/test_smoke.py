@@ -76,6 +76,25 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertTrue(tui.nginx_manager.valid_port("10301"))
         self.assertFalse(tui.nginx_manager.valid_port("70000"))
 
+    def test_static_site_template_and_root_validation(self):
+        content = tui.nginx_manager.static_site_config("static.example.com", "10301", "/var/www/static.example.com")
+        self.assertIn("listen 10301;", content)
+        self.assertIn("server_name static.example.com;", content)
+        self.assertIn("root /var/www/static.example.com;", content)
+        self.assertIn("try_files $uri $uri/ =404;", content)
+        self.assertTrue(tui.nginx_manager.valid_web_root("/var/www/static.example.com"))
+        self.assertFalse(tui.nginx_manager.valid_web_root("relative/path"))
+        self.assertFalse(tui.nginx_manager.valid_web_root("/var/www;bad"))
+
+    def test_nginx_ui_is_lazy_user_repo_action(self):
+        actions = {action["id"]: action for action in self.config["actions"]}
+        action = actions["nginx_ui"]
+        self.assertEqual(action["category"], "server")
+        self.assertEqual(action["kind"], "online")
+        self.assertEqual(action["url"], "https://raw.githubusercontent.com/dandan8511/nginx-ui/dev/install.sh")
+        launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
+        self.assertNotIn("nginx-ui", launcher)
+
     def test_nginx_stages_an_included_conf_before_replacing(self):
         source = (ROOT / "nginx_manager.py").read_text(encoding="utf-8")
         self.assertIn("yjl-tui-stage-", source)

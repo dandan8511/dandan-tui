@@ -27,7 +27,7 @@
 `nginx -t`、`nginx -T`、`ss -lntup` 和 `systemctl is-active nginx`，先展示本机域名、站点配置文件、
 监听端口、静态目录、反代上游、证书和服务状态。
 
-菜单支持刷新扫描、查看站点原始配置、新建反向代理站点，以及证书申请和自动续期。创建新站点时会拒绝
+菜单支持刷新扫描、查看站点原始配置、新建反向代理站点、新建静态站点，以及证书申请和自动续期。创建新站点时会拒绝
 已监听的 TCP 端口，先把临时 `.conf` 放入 `/etc/nginx/conf.d/` 参与 `nginx -t`，通过后才原子替换并
 reload；失败会把新文件移入 `/var/backups/yjl-tui/nginx/`，不覆盖现有业务。
 
@@ -35,6 +35,11 @@ reload；失败会把新文件移入 `/var/backups/yjl-tui/nginx/`，不覆盖�
 续期链路。HTTP-01 要求域名公网 TCP 80 可访问；Cloudflare DNS-01 需要安装
 `python3-certbot-dns-cloudflare`，Token 会写入 `/etc/letsencrypt/yjl-tui/` 下的 `0600` 凭据文件，供
 后续定时续期使用。Token 不写入 TUI 日志。
+
+同一分类中的“nginx 网页管理工具 (nginx-ui)”是可选网页面板。`launch.sh` 不会下载 nginx-ui；只有选择
+该菜单项时，TUI 才会从 `dandan8511/nginx-ui` 下载安装器。你的镜像 Release
+`v2.5.7` 已包含 Linux x64、x32 和 arm64 三个二进制附件；安装器会按当前架构从你的 Release 下载对应
+文件，并新建 nginx-ui 服务和网页监听端口，不能把它当作已有 Nginx 的无影响更新。
 
 ## VPS 启动
 

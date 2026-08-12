@@ -84,6 +84,7 @@
     {"id":"swap_builtin","category":"server","title":"Swap 512MB（内置）","description":"没有活动 Swap 时创建 512MB；已有活动 Swap 则跳过。","kind":"builtin","risk":"warn","needs_root":true},
     {"id":"ssh_config","category":"server","title":"SSH 密码 / 端口","description":"交互式修改密码和 SSH 端口，自动备份、校验、回滚。默认端口 27272。","kind":"builtin","risk":"danger","needs_root":true},
     {"id":"log_manage","category":"server","title":"小硬盘日志策略","description":"查看日志占用并限制 TUI 日志、systemd journal 的容量和保留时间，保留配置备份。","kind":"builtin","risk":"warn","needs_root":true},
+    {"id":"nginx_ui","category":"server","title":"nginx 网页管理工具 (nginx-ui)","description":"仅在选择此项后，才从 dandan8511/nginx-ui 下载 nginx-ui 官方安装器并执行；不会随 TUI 启动下载。nginx-ui 会新增网页管理服务和端口，安装前请先确认现有 Nginx、3x-ui 与业务端口。","kind":"online","url":"https://raw.githubusercontent.com/dandan8511/nginx-ui/dev/install.sh","interpreter":"bash","args":[],"risk":"danger","needs_root":true},
     {"id":"docker_status","category":"docker_manage","title":"1. Docker 状态与信息","description":"查看 Docker 客户端、服务端、存储驱动、Compose 插件和 daemon 状态；只读。","kind":"builtin","risk":"safe","needs_root":false},
     {"id":"docker_containers","category":"docker_manage","title":"2. 容器列表","description":"查看运行中和已停止的容器、镜像、端口、状态和创建时间；只读。","kind":"builtin","risk":"safe","needs_root":false},
     {"id":"docker_images","category":"docker_manage","title":"3. 镜像列表","description":"查看本地镜像、标签、镜像 ID、创建时间和占用空间；只读。","kind":"builtin","risk":"safe","needs_root":false},

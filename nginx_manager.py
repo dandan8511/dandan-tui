@@ -88,6 +88,30 @@ def valid_port(value: str) -> bool:
     return value.isdigit() and 1 <= int(value) <= 65535
 
 
+def valid_web_root(value: str) -> bool:
+    return bool(re.fullmatch(r"/[A-Za-z0-9._/-]+", value)) and value not in {"/", "/var", "/var/www"}
+
+
+def static_site_config(domain: str, port: str, root: str) -> str:
+    return f'''server {{
+    listen {port};
+    server_name {domain};
+    root {root};
+    index index.html;
+    charset utf-8;
+
+    location / {{
+        try_files $uri $uri/ =404;
+    }}
+
+    location ~* \\.(css|js|svg|ico)$ {{
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }}
+}}
+'''
+
+
 class NginxManager:
     def __init__(self, state_dir: Path):
         self.state_dir = state_dir
@@ -208,6 +232,42 @@ class NginxManager:
             return False
         return self._write_new_conf(path, content)
 
+    def create_static_site(self) -> bool:
+        domain = input("域名：").strip()
+        port = input("公网监听 TCP 端口（例如 10301）：").strip()
+        default_root = "/var/www/" + re.sub(r"[^A-Za-z0-9.-]+", "-", domain.replace("*.", "wildcard-"))
+        root = input(f"网站目录 [{default_root}]：").strip() or default_root
+        if not valid_domain(domain) or not valid_port(port) or port in self.listeners or not valid_web_root(root):
+            print("域名、端口或网站目录格式不合法；端口必须当前未监听，网站目录必须是安全的绝对路径。")
+            return False
+        filename = re.sub(r"[^A-Za-z0-9.-]+", "-", domain.replace("*.", "wildcard-")) + f"-{port}.conf"
+        path = Path("/etc/nginx/conf.d") / filename
+        content = static_site_config(domain, port, root)
+        print("\n将创建以下静态站点配置：\n" + content)
+        create_directory = input("同时创建网站目录和默认 index.html？[Y/n] ").strip().lower() not in {"n", "no"}
+        if input("确认创建并 reload Nginx？[y/N] ").strip().lower() not in {"y", "yes"}:
+            return False
+        if create_directory:
+            web_root = Path(root)
+            try:
+                web_root.mkdir(parents=True, exist_ok=True)
+                index = web_root / "index.html"
+                if not index.exists():
+                    index.write_text(
+                        "<!doctype html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>"
+                        + domain + "</title></head><body><h1>" + domain + "</h1></body></html>\n",
+                        encoding="utf-8",
+                    )
+                print(f"网站目录已准备：{web_root}")
+            except OSError as exc:
+                print(f"创建网站目录失败，未写入 Nginx 配置：{exc}")
+                return False
+        if not self._write_new_conf(path, content):
+            return False
+        if not create_directory:
+            print(f"配置已创建；请自行准备网站目录：{root}")
+        return True
+
     def certificate_status(self) -> None:
         paths = sorted({site.certificate for site in self.sites if site.certificate})
         if paths:
@@ -305,7 +365,7 @@ class NginxManager:
             return 1
         while True:
             self.overview()
-            print("\n1. 刷新并重新扫描\n2. 查看站点原始配置\n3. 证书申请与自动续期\n4. 新建反向代理站点\n0. 返回上级菜单")
+            print("\n1. 刷新并重新扫描\n2. 查看站点原始配置\n3. 证书申请与自动续期\n4. 新建反向代理站点\n5. 新建静态站点\n0. 返回上级菜单")
             choice = input("选择 [1]：").strip() or "1"
             if choice == "0":
                 return 0
@@ -322,6 +382,9 @@ class NginxManager:
                 self.refresh()
             elif choice == "4":
                 self.create_proxy()
+                self.refresh()
+            elif choice == "5":
+                self.create_static_site()
                 self.refresh()
             else:
                 print("无效选择。")
