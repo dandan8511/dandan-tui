@@ -17,9 +17,9 @@
 ./run.sh --list
 ```
 
-本地运行时，所有 `local_script` 动作都直接使用本工程文件。`sing-box(fsr)` 使用
-`scripts/fscarmen-sing-box.sh`，不需要从 fscarmen 下载入口脚本。涉及安装、网络、内核、服务、
-证书或防火墙的动作应以 root 运行；fscarmen 菜单后续下载依赖时仍需要网络。
+本地运行时，所有 `local_script` 动作都直接使用本工程文件。`sing-box(fsr)` 与 `WARP 管理菜单（本地克隆）`
+分别使用 `scripts/fscarmen-sing-box.sh`、`scripts/fscarmen-warp.sh`，不需要从 fscarmen 下载入口脚本。涉及
+安装、网络、内核、服务、证书或防火墙的动作应以 root 运行；fscarmen 菜单后续下载依赖时仍需要网络。
 
 ## Nginx 管理工具
 
@@ -148,9 +148,18 @@ sudo bash scripts/dockerhub-mirror.sh --delete-repository library/redis
 sudo bash scripts/dockerhub-mirror.sh --configure-policy --max-cache-gb 1 --expire-days 14
 ```
 
-## sing-box(fsr)
+## fscarmen sing-box 与 WARP 本地快照
 
-该分类右侧的完整菜单对应：
+这两个菜单的实现是相同的：把上游**入口脚本完整保存**到本仓库，TUI 以 `local_script` 执行；`launch.sh`
+又会把快照同步到 VPS 的 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui/scripts/`。所以本地运行和 GitHub
+一行启动都先使用你的 GitHub 仓库文件，而不是当场下载上游入口。
+
+这只本地化入口，不是离线安装包。菜单继续安装时要下载系统包、sing-box 核心、WireGuard、wireproxy、
+cloudflared、证书或订阅模板，仍需要网络，且这些运行依赖仍由各自上游提供。
+
+### sing-box(fsr)
+
+该完整菜单对应：
 
 ```bash
 bash <(wget -qO- https://raw.githubusercontent.com/fscarmen/sing-box/main/sing-box.sh)
@@ -159,38 +168,75 @@ bash <(wget -qO- https://raw.githubusercontent.com/fscarmen/sing-box/main/sing-b
 但 TUI 实际执行仓库内完整克隆 [fscarmen-sing-box.sh](scripts/fscarmen-sing-box.sh)。当前快照来源：
 
 ```text
-upstream commit: e1f08cff8a39ec0ac595d549e886b0ac88514b68
-script version:  v1.3.20 (2026.08.07)
-sha256:          0fbccc6f4ac6a0b2fa5c7cf90130904eae3f322e2451062dd93d6b6f92d0287f
+upstream commit: 10ee5cfbbb463aaf6e5a9de6bf3cf5c9333df579
+script version:  v1.3.22 (2026.08.11)
+sha256:          6e964563045c094fe2b9db855e2c921134cea6386644e9ec833b8feb0357f3a6
 ```
 
-因此上游脚本入口失效后，本项目仍可运行完整菜单。它不是携带所有二进制的断网安装包：系统依赖、
-sing-box、cloudflared、证书和订阅模板仍由上游流程联网获取。
+### WARP
 
-### 更新快照
+该完整菜单对应：
 
-先下载候选版本并检查，再覆盖本地文件：
+```bash
+wget -N https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh
+```
+
+TUI 实际运行 [fscarmen-warp.sh](scripts/fscarmen-warp.sh)。当前快照来源：
+
+```text
+upstream commit: 3f7e4529714b7e634f05ac9f5c2efd41608f9211
+script version:  3.2.7
+sha256:          51a73716f23dcca716bc81083d5d50f817693550c6882107252daf5b35eb7c13
+```
+
+WARP 本身有“同步脚本至最新版本”菜单项。上游原实现会再下载 GitLab 的 `menu.sh`；本项目仅对此处做了
+定向，将它改为从 `dandan8511/dandan-tui` 的 GitHub Raw 下载 `scripts/fscarmen-warp.sh`。也就是说，
+从 TUI 启动 WARP 后在 WARP 菜单里升级，仍会保持使用你的本地化版本；可临时用 `YJL_WARP_UPDATE_URL`
+覆盖该地址测试分支。
+
+### 后续更新约定
+
+以后只要提出“看看 README，更新工程的 sing-box 和 WARP 脚本”，按下面流程执行：先分别取上游 `main`
+候选文件，记录提交号、版本、SHA-256 和 `diff`；语法检查通过后才用完整候选文件覆盖本地快照。WARP 覆盖后必须
+重新应用上面的 `YJL_WARP_UPDATE_URL` 与 `ver()` 下载地址两处定制，不能把它们带回 GitLab。sing-box 当前没有
+本项目私有补丁，应保持逐字上游完整快照。
+
+操作命令如下。临时文件只用于对比，不直接在服务器执行：
 
 ```bash
 git ls-remote https://github.com/fscarmen/sing-box.git refs/heads/main
-curl -fL https://raw.githubusercontent.com/fscarmen/sing-box/main/sing-box.sh -o /tmp/fscarmen-sing-box.sh
+curl -fsSL https://raw.githubusercontent.com/fscarmen/sing-box/main/sing-box.sh -o /tmp/fscarmen-sing-box.sh
+
+git ls-remote https://gitlab.com/fscarmen/warp.git refs/heads/main
+curl -fsSL https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh -o /tmp/fscarmen-warp.sh
+
 bash -n /tmp/fscarmen-sing-box.sh
-sha256sum /tmp/fscarmen-sing-box.sh
+bash -n /tmp/fscarmen-warp.sh
+sha256sum /tmp/fscarmen-sing-box.sh /tmp/fscarmen-warp.sh
 diff -u scripts/fscarmen-sing-box.sh /tmp/fscarmen-sing-box.sh | less
-cp /tmp/fscarmen-sing-box.sh scripts/fscarmen-sing-box.sh
+diff -u scripts/fscarmen-warp.sh /tmp/fscarmen-warp.sh | less
 ```
 
-更新后，把新的提交号、版本和 SHA-256 写回本节，然后运行：
+确认变更后，完整覆盖 sing-box；完整覆盖 WARP 后再加回本仓库升级地址：
+
+```bash
+cp /tmp/fscarmen-sing-box.sh scripts/fscarmen-sing-box.sh
+cp /tmp/fscarmen-warp.sh scripts/fscarmen-warp.sh
+# 重新加入 YJL_WARP_UPDATE_URL 变量，并把 ver() 的下载地址改为 "$YJL_WARP_UPDATE_URL"
+```
+
+最后把新的提交号、版本和 SHA-256 写回本节，并执行：
 
 ```bash
 python3 -m unittest discover -s tests -v
 ./run.sh --check
-git add scripts/fscarmen-sing-box.sh README.md
-git commit -m "chore: refresh fscarmen sing-box snapshot"
+git add scripts/fscarmen-sing-box.sh scripts/fscarmen-warp.sh README.md tests/test_smoke.py
+git commit -m "chore: refresh fscarmen script snapshots"
 git push
 ```
 
-菜单、`launch.sh` 和测试均固定引用 `scripts/fscarmen-sing-box.sh`，正常上游更新不需要再改 TUI 代码。
+正常的上游脚本更新不需要改 `tui.py`、`scripts.json` 或 `launch.sh`，因为它们已固定引用两份本地快照；
+但每次均须保留并运行针对两份快照的语法和冒烟测试。
 
 ## tcpfit 实测 TCP 调优
 

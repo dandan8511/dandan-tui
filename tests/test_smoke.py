@@ -25,9 +25,12 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertEqual(len(action_ids), len(set(action_ids)))
         self.assertGreaterEqual(len(action_ids), 82)
 
-    def test_fixed_online_endpoints(self):
+    def test_fixed_online_endpoints_and_local_warp_snapshot(self):
         actions = {action["id"]: action for action in self.config["actions"]}
-        self.assertEqual(actions["warp"]["url"], "https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh")
+        warp = actions["warp"]
+        self.assertEqual(warp["kind"], "local_script")
+        self.assertEqual(warp["path"], "scripts/fscarmen-warp.sh")
+        self.assertTrue((ROOT / warp["path"]).is_file())
         self.assertEqual(
             actions["onepanel"]["url"],
             "https://resource.fit2cloud.com/1panel/package/v2/quick_start.sh",
@@ -153,10 +156,20 @@ class ConfigSmokeTests(unittest.TestCase):
         snapshot = ROOT / action["path"]
         self.assertTrue(snapshot.is_file())
         source = snapshot.read_text(encoding="utf-8")
-        self.assertIn("VERSION='v1.3.20 (2026.08.07)'", source)
+        self.assertIn("VERSION='v1.3.22 (2026.08.11)'", source)
         self.assertIn('PROTOCOL_LIST=("XTLS + reality"', source)
         self.assertNotIn("YJL-TUI", source)
         self.assertNotIn("--YJL-TUI-VLESS-WS-TLS", source)
+
+    def test_fscarmen_warp_local_clone_updates_from_this_repository(self):
+        action = next(action for action in self.config["actions"] if action["id"] == "warp")
+        source = (ROOT / action["path"]).read_text(encoding="utf-8")
+        self.assertIn("VERSION='3.2.7'", source)
+        self.assertIn("YJL_WARP_UPDATE_URL", source)
+        self.assertIn(
+            "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/scripts/fscarmen-warp.sh",
+            source,
+        )
 
     def test_docker_mirror_switch_is_local_docker_menu_entry(self):
         actions = {action["id"]: action for action in self.config["actions"]}
@@ -323,6 +336,7 @@ class LocalBehaviorTests(unittest.TestCase):
         subprocess.run(["bash", "-n", "scripts/install-tcp-brutal.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/nekoneko-tools.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/fscarmen-sing-box.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/fscarmen-warp.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/tcpfit/tcpfit.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/docker-mirror-switch.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/dockerhub-mirror.sh"], cwd=ROOT, check=True)
