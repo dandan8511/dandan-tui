@@ -81,12 +81,13 @@ download scripts.json
 download tcp_profiles.json
 download scripts/install-tcp-brutal.sh
 download scripts/fscarmen-sing-box.sh
+download scripts/fscarmen-warp.sh
 download scripts/tcpfit/tcpfit.sh
 download scripts/docker-mirror-switch.sh
 download scripts/dockerhub-mirror.sh
 download tools/nft-forward/install.sh
 chmod 700 "${TEMP_DIR}/run.sh"
-chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/nginx_manager.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/fscarmen-sing-box.sh"
+chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/nginx_manager.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/fscarmen-sing-box.sh" "${TEMP_DIR}/scripts/fscarmen-warp.sh"
 chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${TEMP_DIR}/scripts/tcpfit/tcpfit.sh" "${TEMP_DIR}/scripts/docker-mirror-switch.sh" "${TEMP_DIR}/tools/nft-forward/install.sh"
 chmod 700 "${TEMP_DIR}/scripts/dockerhub-mirror.sh"
 mv -f -- "${TEMP_DIR}/run.sh" "${CACHE_ROOT}/run.sh"
@@ -97,6 +98,7 @@ mv -f -- "${TEMP_DIR}/tcp_profiles.json" "${CACHE_ROOT}/tcp_profiles.json"
 mkdir -p -- "${CACHE_ROOT}/scripts"
 mv -f -- "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${CACHE_ROOT}/scripts/install-tcp-brutal.sh"
 mv -f -- "${TEMP_DIR}/scripts/fscarmen-sing-box.sh" "${CACHE_ROOT}/scripts/fscarmen-sing-box.sh"
+mv -f -- "${TEMP_DIR}/scripts/fscarmen-warp.sh" "${CACHE_ROOT}/scripts/fscarmen-warp.sh"
 mv -f -- "${TEMP_DIR}/scripts/docker-mirror-switch.sh" "${CACHE_ROOT}/scripts/docker-mirror-switch.sh"
 mv -f -- "${TEMP_DIR}/scripts/dockerhub-mirror.sh" "${CACHE_ROOT}/scripts/dockerhub-mirror.sh"
 mkdir -p -- "${CACHE_ROOT}/tools/nft-forward"
