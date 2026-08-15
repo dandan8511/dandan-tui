@@ -37,6 +37,14 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertEqual(actions["tcp_fsc_1"]["category"], "vpn_kernel")
         self.assertEqual(actions["tcp_bbr_fq"]["category"], "tcp_tuning")
 
+    def test_grub_maintenance_uses_discovered_entries_and_never_reboots(self):
+        source = (ROOT / "tui.py").read_text(encoding="utf-8")
+        self.assertIn("kernel_manager.parse_grub_menu_entries", source)
+        self.assertIn("kernel_manager.resolve_grub_entry", source)
+        self.assertIn("grub-editenv", source)
+        self.assertIn("grub-reboot", source)
+        self.assertNotIn('"reboot"', source)
+
     def test_fixed_online_endpoints_and_local_warp_snapshot(self):
         actions = {action["id"]: action for action in self.config["actions"]}
         warp = actions["warp"]

@@ -175,20 +175,31 @@ def mainline_package_plan(version: str, page: str, architecture: str) -> Package
 def parse_grub_menu_entries(config_text: str) -> tuple[str, ...]:
     """Parse GRUB menuentry/submenu braces into full, stable entry paths."""
     entries: list[str] = []
-    stack: list[str] = []
-    pending_submenus: list[str] = []
-    token_re = re.compile(r"(?:submenu|menuentry)\s+'([^']+)'|[{}]")
+    submenus: list[str] = []
+    blocks: list[str] = []
+    pending: tuple[str, str] | None = None
+    token_re = re.compile(r"(?P<kind>submenu|menuentry)\s+'(?P<title>[^']+)'|(?P<brace>[{}])")
     for match in token_re.finditer(config_text):
-        title = match.group(1)
-        token = match.group(0)
-        if title is not None:
-            if token.startswith("submenu"):
-                pending_submenus.append(title)
-            else:
-                entries.append(">".join((*stack, title)))
+        kind = match.group("kind")
+        title = match.group("title")
+        brace = match.group("brace")
+        if kind and title:
+            pending = (kind, title)
+            if kind == "menuentry":
+                entries.append(">".join((*submenus, title)))
             continue
-        if token == "{" and pending_submenus:
-            stack.append(pending_submenus.pop())
-        elif token == "}" and stack:
-            stack.pop()
+        if brace == "{":
+            block_kind = pending[0] if pending else "other"
+            blocks.append(block_kind)
+            if pending and pending[0] == "submenu":
+                submenus.append(pending[1])
+            pending = None
+        elif brace == "}" and blocks:
+            if blocks.pop() == "submenu":
+                submenus.pop()
     return tuple(entries)
+
+
+def resolve_grub_entry(entries: tuple[str, ...], selected: str) -> str | None:
+    """Return a complete GRUB entry path only when it was discovered locally."""
+    return selected if selected in entries else None

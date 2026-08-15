@@ -1015,34 +1015,103 @@ class TUI:
         if not defaults.is_file():
             print("没有找到 /etc/default/grub，当前系统可能没有使用 GRUB。")
             return 1
+        config_paths = (Path("/boot/grub/grub.cfg"), Path("/boot/grub2/grub.cfg"))
+        grub_config = next((path for path in config_paths if path.is_file()), None)
+        facts = kernel_manager.collect_kernel_facts()
+        config_text = grub_config.read_text(encoding="utf-8", errors="ignore") if grub_config else ""
+        entries = kernel_manager.parse_grub_menu_entries(config_text)
+
+        print("== GRUB 引导状态 ==")
+        print(f"当前内核：{facts.running_kernel}")
+        print(f"/boot 内核映像：{', '.join(facts.boot_images) or '未读取到'}")
+        print(f"GRUB 配置：{grub_config or '未找到 grub.cfg，仅允许查看'}")
+        print("\n== /etc/default/grub ==")
         print(defaults.read_text(encoding="utf-8", errors="ignore"))
-        print("1. 查看配置\n2. 修改 timeout\n3. 修改默认启动项\n4. 修改内核参数并生成 grub.cfg\n5. 恢复最近备份")
+        print("== grubenv ==")
+        if shutil.which("grub-editenv"):
+            env_result = subprocess.run(["grub-editenv", "list"], text=True, capture_output=True, check=False)
+            print(env_result.stdout.strip() or env_result.stderr.strip() or "空")
+        else:
+            print("未安装 grub-editenv")
+        print("== 发现的完整启动项 ==")
+        for index, entry in enumerate(entries, 1):
+            print(f"{index}. {entry}")
+        if not entries:
+            print("未能从 grub.cfg 解析启动项；不会接受手工猜测的索引或路径。")
+        print(
+            "\n1. 仅查看状态\n2. 刷新 grub.cfg\n3. 设置永久默认启动项\n"
+            "4. 只设置下一次启动项\n5. 修改 timeout\n6. 修改内核参数\n7. 恢复最近备份"
+        )
         choice = input("选择 [1]: ").strip() or "1"
         if choice == "1":
             return 0
-        if choice == "5":
+        if not grub_config:
+            print("未找到可生成的 grub.cfg，未做写入。")
+            return 1
+
+        def refresh() -> subprocess.CompletedProcess:
+            command = ["update-grub"] if shutil.which("update-grub") else ["grub-mkconfig", "-o", str(grub_config)]
+            return subprocess.run(command, text=True, check=False)
+
+        if choice == "2":
+            return refresh().returncode
+        if choice == "7":
             backups = sorted(defaults.parent.glob("grub.yjl-tui.bak.*"), reverse=True)
             if not backups:
                 print("没有找到备份。")
                 return 1
             shutil.copy2(backups[0], defaults)
-            print(f"已恢复：{backups[0]}")
-            return 0
-        value = None
-        key = None
-        if choice == "2":
+            result = refresh()
+            if result.returncode:
+                print(f"恢复后生成 grub.cfg 失败；已恢复的文件：{backups[0]}")
+            else:
+                print(f"已恢复并刷新：{backups[0]}")
+            return result.returncode
+        if choice == "4":
+            if not entries or not shutil.which("grub-reboot"):
+                print("需要可解析的启动项和 grub-reboot，未设置下一次启动项。")
+                return 1
+            original = defaults.read_text(encoding="utf-8", errors="ignore")
+            if not re.search(r"(?m)^\s*GRUB_DEFAULT=\"?saved\"?\s*$", original):
+                print("当前 GRUB_DEFAULT 不是 saved；为避免下次启动失效，请先设置永久默认项为 saved。")
+                return 1
+            selected = input("输入上方启动项编号：").strip()
+            if not selected.isdigit() or not 0 < int(selected) <= len(entries):
+                print("启动项编号无效。")
+                return 2
+            entry = kernel_manager.resolve_grub_entry(entries, entries[int(selected) - 1])
+            if not entry:
+                print("启动项不在当前 grub.cfg 中。")
+                return 1
+            result = subprocess.run(["grub-reboot", entry], check=False)
+            if result.returncode == 0:
+                print(f"已仅设置下一次启动：{entry}\n本工具不会重启；请自行确认维护窗口后重启，并用 uname -r 验证。")
+            return result.returncode
+
+        value: str
+        key: str
+        if choice == "3":
+            print("可选 0: GRUB_DEFAULT=saved，配合下一次启动项；或选择一个完整启动项。")
+            selected = input("输入 0 或上方启动项编号：").strip()
+            if selected == "0":
+                value = "saved"
+            elif selected.isdigit() and 0 < int(selected) <= len(entries):
+                resolved = kernel_manager.resolve_grub_entry(entries, entries[int(selected) - 1])
+                if not resolved:
+                    print("启动项不在当前 grub.cfg 中。")
+                    return 1
+                value = resolved
+            else:
+                print("只允许 0 或已解析的启动项编号。")
+                return 2
+            key = "GRUB_DEFAULT"
+        elif choice == "5":
             value = input("GRUB timeout 秒数 [5]：").strip() or "5"
             if not value.isdigit() or int(value) > 600:
                 print("timeout 必须是 0 到 600 的整数。")
                 return 2
             key = "GRUB_TIMEOUT"
-        elif choice == "3":
-            value = input("默认启动项（数字索引或 saved）：").strip()
-            if not re.fullmatch(r"(?:[0-9]+|saved)", value):
-                print("只允许数字索引或 saved。")
-                return 2
-            key = "GRUB_DEFAULT"
-        elif choice == "4":
+        elif choice == "6":
             value = input("GRUB_CMDLINE_LINUX_DEFAULT 内容：").strip()
             if any(char in value for char in "\n\r\x00"):
                 return 2
@@ -1058,8 +1127,7 @@ class TUI:
         if updated == original:
             updated = original.rstrip() + "\n" + replacement + "\n"
         defaults.write_text(updated, encoding="utf-8")
-        command = ["update-grub"] if shutil.which("update-grub") else ["grub-mkconfig", "-o", "/boot/grub/grub.cfg"]
-        result = subprocess.run(command)
+        result = refresh()
         if result.returncode:
             shutil.copy2(backup, defaults)
             print(f"生成 GRUB 配置失败，已恢复；备份：{backup}")

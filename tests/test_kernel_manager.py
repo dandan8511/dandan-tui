@@ -6,6 +6,7 @@ from kernel_manager import (
     mainline_package_plan,
     parse_grub_menu_entries,
     recommended_apt_plan,
+    resolve_grub_entry,
     supported_distribution,
 )
 
@@ -108,6 +109,36 @@ class GrubParserTests(unittest.TestCase):
                 "Advanced options for Ubuntu>Ubuntu, with Linux 6.8.0-31-generic",
             ),
         )
+
+    def test_parser_keeps_submenu_open_across_menuentry_bodies(self):
+        config = """
+            submenu 'Advanced options for Ubuntu' {
+                menuentry 'Ubuntu, with Linux 6.8.0-31-generic' {
+                    echo 'boot 6.8'
+                }
+                menuentry 'Ubuntu, with Linux 6.8.0-30-generic' {}
+            }
+            menuentry 'Memory test' {}
+        """
+
+        self.assertEqual(
+            parse_grub_menu_entries(config),
+            (
+                "Advanced options for Ubuntu>Ubuntu, with Linux 6.8.0-31-generic",
+                "Advanced options for Ubuntu>Ubuntu, with Linux 6.8.0-30-generic",
+                "Memory test",
+            ),
+        )
+
+    def test_resolve_entry_only_accepts_a_full_discovered_path(self):
+        entries = (
+            "Ubuntu",
+            "Advanced options for Ubuntu>Ubuntu, with Linux 6.8.0-31-generic",
+        )
+
+        self.assertEqual(resolve_grub_entry(entries, entries[1]), entries[1])
+        self.assertIsNone(resolve_grub_entry(entries, "1"))
+        self.assertIsNone(resolve_grub_entry(entries, "Ubuntu, with Linux 6.8.0-31-generic"))
 
 
 class KernelFactsTests(unittest.TestCase):
