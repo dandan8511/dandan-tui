@@ -1,6 +1,7 @@
 import unittest
 
 from kernel_manager import (
+    KernelFacts,
     KernelIdentity,
     mainline_package_plan,
     parse_grub_menu_entries,
@@ -107,6 +108,39 @@ class GrubParserTests(unittest.TestCase):
                 "Advanced options for Ubuntu>Ubuntu, with Linux 6.8.0-31-generic",
             ),
         )
+
+
+class KernelFactsTests(unittest.TestCase):
+    def test_container_is_blocked_from_kernel_installation(self):
+        facts = KernelFacts(
+            identity=KernelIdentity("debian", "12", "bookworm", "amd64"),
+            running_kernel="6.1.0-35-amd64",
+            virtualization="docker",
+            bootloader="none",
+            boot_images=(),
+            secure_boot="unknown",
+            dkms_status=(),
+            boot_free_bytes=0,
+        )
+
+        self.assertEqual(
+            facts.installation_block_reason(),
+            "容器共享宿主机内核，不能在容器内安装或切换内核。",
+        )
+
+    def test_supported_virtual_machine_with_grub_is_not_blocked(self):
+        facts = KernelFacts(
+            identity=KernelIdentity("ubuntu", "24.04", "noble", "arm64"),
+            running_kernel="6.8.0-31-generic",
+            virtualization="kvm",
+            bootloader="grub",
+            boot_images=("vmlinuz-6.8.0-31-generic",),
+            secure_boot="disabled",
+            dkms_status=(),
+            boot_free_bytes=512 * 1024 * 1024,
+        )
+
+        self.assertIsNone(facts.installation_block_reason())
 
 
 if __name__ == "__main__":

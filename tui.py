@@ -14,6 +14,7 @@ import sys
 import time
 from pathlib import Path
 
+import kernel_manager
 import nginx_manager
 from nginx_manager import run_nginx_manager
 
@@ -495,6 +496,62 @@ class TUI:
                 subprocess.run(["update-grub"])
             print("内核包安装完成。请先确认新内核已经出现在 GRUB，再决定是否重启。")
         return result.returncode
+
+    def system_kernel_maintenance(self, log: Path) -> int:
+        if not self.root_required():
+            return 1
+        facts = kernel_manager.collect_kernel_facts()
+        print(kernel_manager.format_kernel_report(facts))
+        if reason := facts.installation_block_reason():
+            print(f"\n{reason}")
+            return 1
+        if not shutil.which("apt-cache") or not shutil.which("apt-get"):
+            print("\n当前系统没有 apt，暂不能使用系统内核维护。")
+            return 1
+        print("\n1. 查看官方稳定内核安装计划\n2. 安装官方稳定内核\n3. 查看 Ubuntu HWE 计划\n4. 查看 Ubuntu Mainline 说明\n5. 查看已安装内核与 GRUB 状态")
+        choice = input("选择 [1]: ").strip() or "1"
+        track = "hwe" if choice == "3" else "stable"
+        identity = facts.identity
+        if choice in {"1", "2", "3"}:
+            packages = (
+                (f"linux-image-{identity.architecture}", f"linux-headers-{identity.architecture}")
+                if identity.distro_id == "debian"
+                else ((f"linux-generic-hwe-{identity.version_id}", f"linux-headers-generic-hwe-{identity.version_id}")
+                      if track == "hwe" else ("linux-generic", "linux-headers-generic"))
+            )
+            candidates = {}
+            for package in packages:
+                value = command_output(["apt-cache", "policy", package])
+                candidate = re.search(r"(?m)^\s*Candidate:\s*(\S+)", value)
+                if candidate and candidate.group(1) != "(none)":
+                    candidates[package] = candidate.group(1)
+            plan = kernel_manager.recommended_apt_plan(identity, candidates, track)
+            if not plan:
+                print("当前已配置 apt 源没有完整的对应内核元包，不执行安装。")
+                return 1
+            print(f"\n计划：{plan.label}\n来源：当前已配置的 apt 源\n包：{' '.join(plan.packages)}")
+            if choice != "2":
+                return 0
+            if input("输入 INSTALL 确认仅安装以上内核包：").strip() != "INSTALL":
+                print("已取消。")
+                return 2
+            result = subprocess.run(["apt-get", "install", "-y", *plan.packages])
+            if result.returncode:
+                return result.returncode
+            if shutil.which("update-initramfs"):
+                subprocess.run(["update-initramfs", "-u"], check=False)
+            if shutil.which("update-grub"):
+                subprocess.run(["update-grub"], check=False)
+            print("内核包已安装并已尝试刷新引导。请进入“引导维护”确认新内核，再重启并用 uname -r 验证。")
+            return 0
+        if choice == "4":
+            print("Ubuntu Mainline 预编译包仅在 amd64 且上游页面显示成功、包完整、校验通过时才会提供；arm64 请使用官方 apt 或本地源码编译。")
+            return 0
+        if choice == "5":
+            subprocess.run(["dpkg", "-l", "linux-image*"], check=False)
+            subprocess.run(["bash", "-c", "grep -E '^menuentry|^submenu' /boot/grub/grub.cfg 2>/dev/null || true"])
+            return 0
+        return 2
 
     @staticmethod
     def nginx_config_text() -> str:
@@ -2232,6 +2289,9 @@ done'''
             input("\n按 Enter 返回菜单...")
         elif action["id"] == "kernel_manage":
             rc = self.kernel_manage(log)
+            input("\n按 Enter 返回菜单...")
+        elif action["id"] == "system_kernel_maintenance":
+            rc = self.system_kernel_maintenance(log)
             input("\n按 Enter 返回菜单...")
         elif action["id"] == "ssl_manage":
             rc = self.ssl_manage(log)

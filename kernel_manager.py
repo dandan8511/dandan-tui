@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
+from pathlib import Path
 import re
+import shutil
+import subprocess
 
 
 SUPPORTED_RELEASES = {
@@ -31,11 +35,89 @@ class PackagePlan:
     source: str
 
 
+@dataclass(frozen=True)
+class KernelFacts:
+    identity: KernelIdentity
+    running_kernel: str
+    virtualization: str
+    bootloader: str
+    boot_images: tuple[str, ...]
+    secure_boot: str
+    dkms_status: tuple[str, ...]
+    boot_free_bytes: int
+
+    def installation_block_reason(self) -> str | None:
+        if self.virtualization.lower() in {"docker", "lxc", "lxc-libvirt", "openvz", "container"}:
+            return "容器共享宿主机内核，不能在容器内安装或切换内核。"
+        if not supported_distribution(self.identity):
+            return "当前系统或 CPU 架构暂不在系统内核维护支持范围内。"
+        if self.bootloader == "none":
+            return "未检测到可管理的本机引导环境，不能安全安装内核。"
+        return None
+
+
 def supported_distribution(identity: KernelIdentity) -> bool:
     return (
         identity.architecture in SUPPORTED_ARCHITECTURES
         and (identity.distro_id, identity.version_id) in SUPPORTED_RELEASES
     )
+
+
+def _output(command: tuple[str, ...]) -> str:
+    if not command or not shutil.which(command[0]):
+        return ""
+    result = subprocess.run(command, text=True, capture_output=True, check=False, env={**os.environ, "LC_ALL": "C"})
+    return result.stdout.strip()
+
+
+def _os_release() -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        lines = Path("/etc/os-release").read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError:
+        return values
+    for line in lines:
+        if "=" in line and not line.startswith("#"):
+            key, value = line.split("=", 1)
+            values[key] = value.strip().strip('"')
+    return values
+
+
+def collect_kernel_facts() -> KernelFacts:
+    os_release = _os_release()
+    architecture = _output(("dpkg", "--print-architecture")) or _output(("uname", "-m"))
+    architecture = {"x86_64": "amd64", "aarch64": "arm64"}.get(architecture, architecture)
+    virtualization = _output(("systemd-detect-virt",)) or "none"
+    bootloader = "grub" if Path("/etc/default/grub").is_file() else "none"
+    secure_boot = _output(("mokutil", "--sb-state")) or "unknown"
+    boot_images = tuple(path.name for path in sorted(Path("/boot").glob("vmlinuz-*"))) if Path("/boot").is_dir() else ()
+    dkms = tuple(line for line in _output(("dkms", "status")).splitlines() if line)
+    try:
+        boot_free = shutil.disk_usage("/boot").free
+    except OSError:
+        boot_free = 0
+    return KernelFacts(
+        KernelIdentity(os_release.get("ID", ""), os_release.get("VERSION_ID", ""), os_release.get("VERSION_CODENAME", ""), architecture),
+        _output(("uname", "-r")) or "未知",
+        virtualization,
+        bootloader,
+        boot_images,
+        secure_boot,
+        dkms,
+        boot_free,
+    )
+
+
+def format_kernel_report(facts: KernelFacts) -> str:
+    return "\n".join((
+        f"系统：{facts.identity.distro_id} {facts.identity.version_id} ({facts.identity.codename or '未知'})",
+        f"架构：{facts.identity.architecture or '未知'}；虚拟化：{facts.virtualization}",
+        f"当前内核：{facts.running_kernel}",
+        f"引导：{facts.bootloader}；/boot 可用：{facts.boot_free_bytes // 1024 // 1024} MiB",
+        f"已安装内核：{', '.join(facts.boot_images) or '未读取到'}",
+        f"Secure Boot：{facts.secure_boot}",
+        f"DKMS：{'; '.join(facts.dkms_status) or '未检测到'}",
+    ))
 
 
 def recommended_apt_plan(

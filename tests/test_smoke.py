@@ -25,6 +25,18 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertEqual(len(action_ids), len(set(action_ids)))
         self.assertGreaterEqual(len(action_ids), 82)
 
+    def test_kernel_categories_and_action_migration(self):
+        categories = [category["id"] for category in self.config["categories"]]
+        actions = {action["id"]: action for action in self.config["actions"]}
+        tcp_index = categories.index("tcp_tuning")
+        self.assertEqual(categories[tcp_index + 1:tcp_index + 3], ["kernel_manage", "vpn_kernel"])
+        self.assertEqual(actions["system_kernel_maintenance"]["category"], "kernel_manage")
+        self.assertTrue(actions["system_kernel_maintenance"]["needs_root"])
+        self.assertEqual(actions["grub_manage"]["category"], "kernel_manage")
+        self.assertEqual(actions["kernel_manage"]["category"], "vpn_kernel")
+        self.assertEqual(actions["tcp_fsc_1"]["category"], "vpn_kernel")
+        self.assertEqual(actions["tcp_bbr_fq"]["category"], "tcp_tuning")
+
     def test_fixed_online_endpoints_and_local_warp_snapshot(self):
         actions = {action["id"]: action for action in self.config["actions"]}
         warp = actions["warp"]
