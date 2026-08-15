@@ -3,6 +3,7 @@ import unittest
 from kernel_manager import (
     KernelFacts,
     KernelIdentity,
+    backports_apt_arguments,
     debian_backports_source,
     mainline_package_plan,
     mainline_sha256sums,
@@ -76,6 +77,15 @@ class AptPlanTests(unittest.TestCase):
         )
         self.assertIsNone(debian_backports_source(KernelIdentity("ubuntu", "24.04", "noble", "amd64")))
         self.assertIsNone(debian_backports_source(KernelIdentity("debian", "10", "buster", "amd64")))
+
+    def test_backports_install_targets_its_suite_explicitly(self):
+        identity = KernelIdentity("debian", "12", "bookworm", "amd64")
+
+        self.assertEqual(
+            backports_apt_arguments(identity, ("linux-image-amd64", "linux-headers-amd64")),
+            ("apt-get", "install", "-y", "-t", "bookworm-backports", "linux-image-amd64", "linux-headers-amd64"),
+        )
+        self.assertIsNone(backports_apt_arguments(KernelIdentity("ubuntu", "24.04", "noble", "amd64"), ("linux-generic",)))
 
 
 class MainlinePlanTests(unittest.TestCase):

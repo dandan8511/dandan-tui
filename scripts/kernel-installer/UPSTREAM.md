@@ -26,8 +26,10 @@ LICENSE              b96b72c0fdf6755692adad6e047ab59845cb0ea478b58ea003df64a42c1
    validation.
 3. Remove command-line paths for script update, kernel uninstall, and kexec.
    The vendored copy is updated only through normal repository review.
-4. The TUI invokes only stable, longterm, or mainline source-build paths. It
-   does not expose raw configuration targets, kexec, or uninstall operations.
+4. The TUI invokes only stable or longterm source-build paths because the
+   bundled verification flow covers their kernel.org release tarballs. It does
+   not expose raw configuration targets, mainline snapshots, kexec, or
+   uninstall operations.
 
 The build still downloads kernel source and build dependencies from the
 network. It never reboots automatically. Activation is confirmed only after a

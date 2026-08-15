@@ -21,6 +21,30 @@
 分别使用 `scripts/fscarmen-sing-box.sh`、`scripts/fscarmen-warp.sh`，不需要从 fscarmen 下载入口脚本。涉及
 安装、网络、内核、服务、证书或防火墙的动作应以 root 运行；fscarmen 菜单后续下载依赖时仍需要网络。
 
+## 内核管理与引导维护
+
+左侧菜单把通用系统内核与 VPN/TCP 加速专用内核分开：
+
+- **内核管理**：`系统内核维护` 与 `GRUB 启动管理`。支持 Debian 11/12/13、Ubuntu 22.04/24.04/26.04 的 `amd64`、`arm64` 官方 APT 内核。
+- **VPN 专用内核**：保留原“官方内核管理”以及 BBR、BBRplus、锐速等旧链路，供 VPN/TCP 加速用途；它不替代系统内核维护的安全检查。
+
+系统内核维护会先显示发行版、架构、当前内核、虚拟化形态、`/boot` 空间、Secure Boot、DKMS 和已安装映像。Docker、LXC、OpenVZ 等容器会被拒绝，因为它们共享宿主机内核。所有安装路径都只安装所展示的内核包，不执行 `apt-get upgrade`、不自动清理旧内核，也**绝不自动重启**。
+
+可选路径如下：
+
+| 路径 | 适用范围 | 约束 |
+| --- | --- | --- |
+| 官方 APT 稳定内核 | Debian/Ubuntu，amd64/arm64 | 默认推荐；只在当前源同时提供 image 与 headers 元包时允许安装。 |
+| Ubuntu HWE | Ubuntu | 不添加额外源；只有当前 APT 已提供完整 HWE 元包才显示。 |
+| Debian Backports | Debian 11/12/13 | 只创建或移除 `/etc/apt/sources.list.d/yjl-tui-kernel-<codename>-backports.list`，不改用户的主 sources 文件。 |
+| Ubuntu Mainline 预编译包 | Ubuntu amd64 | 仅在上游页面明确显示 amd64 构建成功、headers/image/modules 完整、`CHECKSUMS.gpg` 用固定的 Kernel PPA 专用 keyring 验签成功且每个包 SHA-256 一致时才允许 `dpkg -i`。Secure Boot 必须明确为 disabled。arm64 不硬装。 |
+| kernel.org 源码编译 | Debian/Ubuntu，amd64/arm64 | 高级路径，使用本地固定的 MIT `scripts/kernel-installer/`；至少需要 8 GiB 根分区可用空间，仅提供已验证的 stable/longterm release tarball。 |
+
+`GRUB 启动管理`会显示当前 `uname -r`、`/boot/vmlinuz-*`、`grub-editenv list` 和从本机 `grub.cfg` 解析出的完整启动路径。永久默认项与仅下一次启动均只能从该列表选择；后者使用 `grub-reboot` 写入 one-shot 项，不重启机器。任何内核安装的最终验证都应是：在维护窗口自行重启，重新登录后运行 `uname -r`，并核对它与预期版本一致。
+
+源码构建工具的固定上游提交、原始 SHA-256、许可证与本地安全改动记录在
+[`scripts/kernel-installer/UPSTREAM.md`](scripts/kernel-installer/UPSTREAM.md)。本地副本禁止远程 source 回退、脚本自更新、不验证证书的下载、`kexec` 与卸载入口。
+
 ## Nginx 管理工具
 
 “服务器配置”分类中的“Nginx 管理工具”只管理当前 VPS。本机每次进入都会实时执行
@@ -55,7 +79,7 @@ bash <(curl -fsSL "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/
 bash <(wget -qO- "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 ```
 
-`launch.sh` 每次从 `main` 下载 TUI 本体、菜单配置、本地 TCP 脚本、Docker 镜像源检测脚本，以及 fscarmen、tcpfit、nft-forward 的本地快照到
+`launch.sh` 每次从 `main` 下载 TUI 本体、内核管理模块、菜单配置、本地 TCP 脚本、Docker 镜像源检测脚本，以及 fscarmen、tcpfit、nft-forward、kernel-installer 的本地快照到
 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动。要固定某个版本：
 
 ```bash

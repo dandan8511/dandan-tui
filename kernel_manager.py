@@ -133,7 +133,11 @@ def recommended_apt_plan(
     if identity.distro_id == "debian":
         arch = identity.architecture
         packages = (f"linux-image-{arch}", f"linux-headers-{arch}")
-        label = f"Debian {identity.version_id} 官方稳定内核"
+        label = (
+            f"Debian {identity.version_id} Backports 内核"
+            if preferred_track == "backports"
+            else f"Debian {identity.version_id} 官方稳定内核"
+        )
     elif preferred_track == "hwe":
         version = identity.version_id
         packages = (f"linux-generic-hwe-{version}", f"linux-headers-generic-hwe-{version}")
@@ -143,7 +147,8 @@ def recommended_apt_plan(
         label = f"Ubuntu {identity.version_id} 官方稳定内核"
     if not all(candidates.get(package) for package in packages):
         return None
-    return PackagePlan(label, packages, "configured-apt")
+    source = "debian-backports" if preferred_track == "backports" else "configured-apt"
+    return PackagePlan(label, packages, source)
 
 
 def debian_backports_source(identity: KernelIdentity) -> str | None:
@@ -153,6 +158,13 @@ def debian_backports_source(identity: KernelIdentity) -> str | None:
     if not re.fullmatch(r"[a-z0-9-]+", identity.codename):
         return None
     return f"deb http://deb.debian.org/debian {identity.codename}-backports main"
+
+
+def backports_apt_arguments(identity: KernelIdentity, packages: tuple[str, ...]) -> tuple[str, ...] | None:
+    """Return APT arguments that force the explicitly configured backports suite."""
+    if not debian_backports_source(identity) or not packages:
+        return None
+    return ("apt-get", "install", "-y", "-t", f"{identity.codename}-backports", *packages)
 
 
 def mainline_package_plan(version: str, page: str, architecture: str) -> PackagePlan | None:

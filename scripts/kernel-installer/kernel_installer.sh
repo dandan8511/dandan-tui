@@ -62,16 +62,15 @@ LOWLATENCY=0
 GET_VERIFIED_TARBALL=1
 # Show banners (Default: yes)
 BANNERS=1
-# Default Install dir (Default: /opt/linux)
-INSTALL_DIR=${INSTALL_DIR:-/opt/linux-kernel}
+# Build only in a fresh, private directory. Never inherit a caller-controlled
+# path because this helper removes its work directory during compilation.
+INSTALL_DIR=$(mktemp -d /var/tmp/yjl-kernel-build.XXXXXXXX)
 # https://stackoverflow.com/a/51068988
 latest_kernel() {
   curl -s https://www.kernel.org/finger_banner | grep -m1 "$1" | sed -r 's/^.+: +([^ ]+)( .+)?$/\1/'
 }
 # Default Kernel version
 STABLE_VER=$(latest_kernel stable)
-# Mainline kernel version
-MAINLINE_VER=$(latest_kernel mainline)
 # Lonterm kernel version
 LONGTERM_VER=$(latest_kernel longterm)
 # Default kernel version without arguments
@@ -232,96 +231,6 @@ exit_script() {
   echo ""
 }
 
-##
-# Returns the version number of ${SCRIPT_NAME} file on line 14
-##
-get_updater_version () {
-  echo $(sed -n '14 s/[^0-9.]*\([0-9.]*\).*/\1/p' "$1")
-}
-
-# Update script
-# Default: Do not check for update
-update_updater () {
-  # Download files
-  download_file () {
-    declare -r url=$1
-    declare -r tf=$(mktemp)
-    local dlcmd=''
-    dlcmd="wget -O $tf"
-    $dlcmd "${url}" &>/dev/null && echo "$tf" || echo '' # return the temp-filename (or empty string on error)
-  }
-  # Open files
-  open_file () { #expects one argument: file_path
-
-    if [ "$(uname)" == 'Darwin' ]; then
-      open "$1"
-    elif [ "$(cut $(uname -s) 1 5)" == "Linux" ]; then
-      xdg-open "$1"
-    else
-      echo -e "${RED}${ERROR} Error: Sorry, opening files is not supported for your OS.${NC}"
-    fi
-  }
-  # Get latest release tag from GitHub
-  get_latest_release_tag() {
-    curl --silent "https://api.github.com/repos/$1/releases/latest" |
-    grep '"tag_name":' |
-    sed -n 's/[^0-9.]*\([0-9.]*\).*/\1/p'
-  }
-
-  RELEASE_TAG=$(get_latest_release_tag ${REPO_NAME})
-
-  # Get latest release download url
-  get_latest_release() {
-    curl --silent "https://api.github.com/repos/$1/releases/latest" |
-    grep '"browser_download_url":' |
-    sed -n 's#.*\(https*://[^"]*\).*#\1#;p'
-  }
-
-  LATEST_RELEASE=$(get_latest_release ${REPO_NAME})
-
-  # Get latest release notes
-  get_latest_release_note() {
-    curl --silent "https://api.github.com/repos/$1/releases/latest" |
-    grep '"body":' |
-    sed -n 's/.*"\([^"]*\)".*/\1/;p'
-  }
-
-  RELEASE_NOTE=$(get_latest_release_note ${REPO_NAME})
-
-  # Get latest release title
-  get_latest_release_title() {
-    curl --silent "https://api.github.com/repos/$1/releases/latest" |
-    grep -m 1 '"name":' |
-    sed -n 's/.*"\([^"]*\)".*/\1/;p'
-  }
-
-  RELEASE_TITLE=$(get_latest_release_title ${REPO_NAME})
-
-  echo -e "${GREEN}${ARROW} Checking for updates...${NORMAL}"
-  # Get tmpfile from github
-  declare -r tmpfile=$(download_file "$LATEST_RELEASE")
-  if [[ $(get_updater_version "${CURRDIR}/$SCRIPT_FILENAME") < "${RELEASE_TAG}" ]]; then
-    if [ $UPDATE_SCRIPT = "1" ]; then
-      show_update_banner
-      echo -e "${RED}${ARROW} Do you want to update [Y/N?]${NORMAL}"
-      read -p "" -n 1 -r
-      echo -e "\n\n"
-      if [[ $REPLY =~ ^[Yy]$ ]]; then
-        mv "${tmpfile}" "${CURRDIR}/${SCRIPT_FILENAME}"
-        chmod u+x "${CURRDIR}/${SCRIPT_FILENAME}"
-        "${CURRDIR}/${SCRIPT_FILENAME}" "$@" -d
-        exit 1 # Update available, user chooses to update
-      fi
-      if [[ $REPLY =~ ^[Nn]$ ]]; then
-        return 1 # Update available, but user chooses not to update
-      fi
-    fi
-  else
-    echo -e "${GREEN}${DONE} No update available.${NORMAL}"
-    return 0 # No update available
-  fi
-}
-
 usage() {
   #header
   ## shellcheck disable=SC2046
@@ -332,9 +241,7 @@ usage() {
   printf "%s\\n" "  ${YELLOW}--help                 |-h${NORMAL}   display this help and exit"
   printf "%s\\n" "  ${YELLOW}--kernel               |-k${NORMAL}   kernel version of choice"
   printf "%s\\n" "  ${YELLOW}--stable               |-s${NORMAL}   stable kernel version ${YELLOW}$STABLE_VER${NORMAL}"
-  printf "%s\\n" "  ${YELLOW}--mainline             |-m${NORMAL}   mainline kernel version ${YELLOW}$MAINLINE_VER${NORMAL}"
   printf "%s\\n" "  ${YELLOW}--longterm             |-l${NORMAL}   longterm kernel version ${YELLOW}$LONGTERM_VER${NORMAL}"
-  printf "%s\\n" "  ${YELLOW}--dir                  |-d${NORMAL}   install directory"
   printf "%s\\n" "  ${YELLOW}--config               |-c${NORMAL}   set configuration target"
   printf "%s\\n" "  ${YELLOW}--verbose              |-v${NORMAL}   increase verbosity"
   printf "%s\\n" "  ${YELLOW}--get-verified-tarball |-gvt${NORMAL} cryptographically verify kernel tarball"
@@ -370,11 +277,6 @@ while [[ $# -gt 0 ]]; do
       LINUX_VER=$STABLE_VER
       LINUX_VER_NAME=Stable
       ;;
-    --mainline | -m)
-      shift
-      LINUX_VER=$MAINLINE_VER
-      LINUX_VER_NAME=Mainline
-      ;;
     --longterm | -l)
       shift
       LINUX_VER=$LONGTERM_VER
@@ -385,11 +287,6 @@ while [[ $# -gt 0 ]]; do
       LINUX_VER_NAME=Custom
       shift
       shift
-      ;;
-    --dir | -d) # Bash Space-Separated (e.g., --option argument)
-      INSTALL_DIR="$2"/linux-kernel # Source: https://stackoverflow.com/a/14203146
-      shift # past argument
-      shift # past value
       ;;
     --config | -c)
       CONFIG_OPTION="$2"
@@ -642,8 +539,8 @@ get_verified_tarball() {
 
   # Point this at your GnuPG binary version 2.1.11 or above.
   # If you are using USEKEYRING, GnuPG-1 will work, too.
-  GPGBIN="/usr/bin/gpg2"
-  GPGVBIN="/usr/bin/gpgv2"
+  GPGBIN=$(command -v gpg || true)
+  GPGVBIN=$(command -v gpgv || true)
   # We need a compatible version of sha256sum, too
   SHA256SUMBIN="/usr/bin/sha256sum"
   # And curl
@@ -691,20 +588,17 @@ get_verified_tarball() {
   fi
 
   # Start by making sure our GnuPG environment is sane
-  if [[ ! -x ${GPGBIN} ]]; then
-    echo "Could not find gpg in ${GPGBIN}"
-    log_debug "Installing gnupg2"
-    ${INSTALL} gnupg2
-    echo "done"
-    #exit 1
+  if [[ -z ${GPGBIN} ]]; then
+    log_debug "Installing gnupg"
+    ${INSTALL} gnupg || fatal "Failed to install gnupg"
+    GPGBIN=$(command -v gpg || true)
   fi
-  if [[ ! -x ${GPGVBIN} ]]; then
-    echo "Could not find gpgv in ${GPGVBIN}"
-    log_debug "Installing gpgv2"
-    ${INSTALL} gpgv2
-    echo "done"
-    #exit 1
+  if [[ -z ${GPGVBIN} ]]; then
+    log_debug "Installing gpgv"
+    ${INSTALL} gpgv || fatal "Failed to install gpgv"
+    GPGVBIN=$(command -v gpgv || true)
   fi
+  [[ -n ${GPGBIN} && -n ${GPGVBIN} ]] || fatal "gpg and gpgv are required for verification"
 
   # Let's make a safe temporary directory for intermediates
   TMPDIR=$(mktemp -d "${TARGETDIR}"/linux-tarball-verify.XXXXXXXXX.untrusted)

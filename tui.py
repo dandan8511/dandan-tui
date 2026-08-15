@@ -514,12 +514,18 @@ class TUI:
         print(
             "\n1. 查看官方稳定内核安装计划\n2. 安装官方稳定内核\n3. 查看 Ubuntu HWE 计划\n"
             "4. Ubuntu Mainline 查询、校验和安装（amd64）\n5. 查看已安装内核与 GRUB 状态\n"
-            "6. Debian Backports 内核源维护\n7. kernel.org 源码编译（高级）"
+            "6. Debian Backports 内核源维护\n7. kernel.org 源码编译（高级）\n"
+            "8. 安装 Debian Backports 内核"
         )
         choice = input("选择 [1]: ").strip() or "1"
-        track = "hwe" if choice == "3" else "stable"
+        track = "hwe" if choice == "3" else "backports" if choice == "8" else "stable"
         identity = facts.identity
-        if choice in {"1", "2", "3"}:
+        if choice in {"1", "2", "3", "8"}:
+            if track == "backports":
+                managed_source = Path("/etc/apt/sources.list.d") / f"yjl-tui-kernel-{identity.codename}-backports.list"
+                if not kernel_manager.debian_backports_source(identity) or not managed_source.is_file():
+                    print("请先在第 6 项启用本 TUI 管理的 Debian Backports 源。")
+                    return 1
             packages = (
                 (f"linux-image-{identity.architecture}", f"linux-headers-{identity.architecture}")
                 if identity.distro_id == "debian"
@@ -528,7 +534,10 @@ class TUI:
             )
             candidates = {}
             for package in packages:
-                value = command_output(["apt-cache", "policy", package])
+                apt_query = ["apt-cache", "policy", package]
+                if track == "backports":
+                    apt_query = ["apt-cache", "-t", f"{identity.codename}-backports", "policy", package]
+                value = command_output(apt_query)
                 candidate = re.search(r"(?m)^\s*Candidate:\s*(\S+)", value)
                 if candidate and candidate.group(1) != "(none)":
                     candidates[package] = candidate.group(1)
@@ -537,12 +546,17 @@ class TUI:
                 print("当前已配置 apt 源没有完整的对应内核元包，不执行安装。")
                 return 1
             print(f"\n计划：{plan.label}\n来源：当前已配置的 apt 源\n包：{' '.join(plan.packages)}")
-            if choice != "2":
+            if choice not in {"2", "8"}:
                 return 0
             if input("输入 INSTALL 确认仅安装以上内核包：").strip() != "INSTALL":
                 print("已取消。")
                 return 2
-            result = subprocess.run(["apt-get", "install", "-y", *plan.packages])
+            command = ["apt-get", "install", "-y", *plan.packages]
+            if track == "backports":
+                command = list(kernel_manager.backports_apt_arguments(identity, plan.packages) or ())
+                if not command:
+                    return 1
+            result = subprocess.run(command)
             if result.returncode:
                 return result.returncode
             if shutil.which("update-initramfs"):
@@ -619,8 +633,8 @@ class TUI:
         if identity.distro_id != "ubuntu" or identity.architecture != "amd64":
             print("Ubuntu Mainline 预编译包只对 Ubuntu amd64 提供；Debian/arm64 请使用官方 apt 或源码编译路径。")
             return 1
-        if "enabled" in facts.secure_boot.lower():
-            print("检测到 Secure Boot 已开启。Ubuntu Mainline 包为 unsigned，不能安全自动安装。")
+        if "disabled" not in facts.secure_boot.lower():
+            print("Secure Boot 状态不是明确 disabled。Ubuntu Mainline 包为 unsigned，拒绝自动安装。")
             return 1
         version = input("输入上游版本目录（如 v6.16.3）：").strip()
         if not re.fullmatch(r"v\d+\.\d+(?:\.\d+)?(?:-rc\d+)?", version):
@@ -645,9 +659,9 @@ class TUI:
         try:
             self._download_https(base_url + "/CHECKSUMS", cache / "CHECKSUMS")
             self._download_https(base_url + "/CHECKSUMS.gpg", cache / "CHECKSUMS.gpg")
-            keyring = Path("/usr/share/keyrings/ubuntu-archive-keyring.gpg")
+            keyring = APP_DIR / "scripts" / "ubuntu-mainline-signing-key.gpg"
             if not shutil.which("gpgv") or not keyring.is_file():
-                print("缺少 gpgv 或 Ubuntu archive keyring，拒绝继续安装。")
+                print("缺少 gpgv 或本地固定的 Ubuntu Mainline 签名 keyring，拒绝继续安装。")
                 return 1
             verified = subprocess.run(
                 ["gpgv", "--keyring", str(keyring), str(cache / "CHECKSUMS.gpg"), str(cache / "CHECKSUMS")],
@@ -697,9 +711,9 @@ class TUI:
         if free_gib < 8:
             print("根分区可用空间低于 8 GiB，拒绝启动源码编译。")
             return 1
-        print("1. kernel.org 稳定版\n2. kernel.org 长期支持版\n3. kernel.org 主线版")
+        print("1. kernel.org 稳定版\n2. kernel.org 长期支持版")
         choice = input("选择 [1]: ").strip() or "1"
-        options = {"1": "--stable", "2": "--longterm", "3": "--mainline"}
+        options = {"1": "--stable", "2": "--longterm"}
         if choice not in options:
             return 2
         if input("输入 BUILD 确认开始本地源码编译（不会自动重启或卸载旧内核）：").strip() != "BUILD":

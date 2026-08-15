@@ -52,6 +52,12 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertIn("kernel_manager.mainline_sha256sums", source)
         self.assertIn("gpgv", source)
         self.assertIn("dpkg", source)
+        key = ROOT / "scripts" / "ubuntu-mainline-signing-key.gpg"
+        self.assertTrue(key.is_file())
+        provenance = (ROOT / "scripts" / "ubuntu-mainline-signing-key.md").read_text(encoding="utf-8")
+        self.assertIn("60AA7B6F30434AE68E569963E50C6A0917C622B0", provenance)
+        self.assertIn("ubuntu-mainline-signing-key.gpg", source)
+        self.assertIn('"disabled" not in facts.secure_boot.lower()', source)
 
     def test_kernel_source_builder_is_local_hardened_and_launcher_cached(self):
         root = ROOT / "scripts" / "kernel-installer"
@@ -63,11 +69,21 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertNotIn("source <(curl", source)
         self.assertNotIn("--no-check-certificate", source)
         self.assertNotIn("self-update", source.lower())
+        self.assertNotIn("--mainline", source)
+        self.assertNotIn('"3": "--mainline"', (ROOT / "tui.py").read_text(encoding="utf-8"))
         launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
         self.assertIn("download scripts/kernel-installer/kernel_installer.sh", launcher)
         self.assertIn("download scripts/kernel-installer/src/slib.sh", launcher)
         self.assertIn("download scripts/kernel-installer/LICENSE", launcher)
         self.assertIn("download scripts/kernel-installer/UPSTREAM.md", launcher)
+
+    def test_source_builder_never_accepts_an_external_build_directory_or_old_gpgv2(self):
+        source = (ROOT / "scripts" / "kernel-installer" / "kernel_installer.sh").read_text(encoding="utf-8")
+        self.assertNotIn("INSTALL_DIR=${INSTALL_DIR", source)
+        self.assertNotIn("--dir", source)
+        self.assertIn("mktemp -d /var/tmp/yjl-kernel-build.", source)
+        self.assertIn("command -v gpgv", source)
+        self.assertNotIn("gpgv2", source)
 
     def test_fixed_online_endpoints_and_local_warp_snapshot(self):
         actions = {action["id"]: action for action in self.config["actions"]}
@@ -403,6 +419,8 @@ class LocalBehaviorTests(unittest.TestCase):
         self.assertIn("onepanel", listing.stdout)
         self.assertIn("fscarmen_singbox_menu", listing.stdout)
         self.assertIn("dockerhub_mirror", listing.stdout)
+        self.assertIn("system_kernel_maintenance", listing.stdout)
+        self.assertIn("grub_manage", listing.stdout)
         self.assertNotIn("[danger]", listing.stdout)
         self.assertNotIn("[warn]", listing.stdout)
         self.assertNotIn("[safe]", listing.stdout)
