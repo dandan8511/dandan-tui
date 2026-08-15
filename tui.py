@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import curses
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -12,6 +13,8 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import kernel_manager
@@ -508,7 +511,11 @@ class TUI:
         if not shutil.which("apt-cache") or not shutil.which("apt-get"):
             print("\n当前系统没有 apt，暂不能使用系统内核维护。")
             return 1
-        print("\n1. 查看官方稳定内核安装计划\n2. 安装官方稳定内核\n3. 查看 Ubuntu HWE 计划\n4. 查看 Ubuntu Mainline 说明\n5. 查看已安装内核与 GRUB 状态")
+        print(
+            "\n1. 查看官方稳定内核安装计划\n2. 安装官方稳定内核\n3. 查看 Ubuntu HWE 计划\n"
+            "4. Ubuntu Mainline 查询、校验和安装（amd64）\n5. 查看已安装内核与 GRUB 状态\n"
+            "6. Debian Backports 内核源维护\n7. kernel.org 源码编译（高级）"
+        )
         choice = input("选择 [1]: ").strip() or "1"
         track = "hwe" if choice == "3" else "stable"
         identity = facts.identity
@@ -545,13 +552,159 @@ class TUI:
             print("内核包已安装并已尝试刷新引导。请进入“引导维护”确认新内核，再重启并用 uname -r 验证。")
             return 0
         if choice == "4":
-            print("Ubuntu Mainline 预编译包仅在 amd64 且上游页面显示成功、包完整、校验通过时才会提供；arm64 请使用官方 apt 或本地源码编译。")
-            return 0
+            return self.ubuntu_mainline_maintenance(facts)
         if choice == "5":
             subprocess.run(["dpkg", "-l", "linux-image*"], check=False)
             subprocess.run(["bash", "-c", "grep -E '^menuentry|^submenu' /boot/grub/grub.cfg 2>/dev/null || true"])
             return 0
+        if choice == "6":
+            return self.debian_backports_maintenance(facts)
+        if choice == "7":
+            return self.kernel_source_build(facts, log)
         return 2
+
+    @staticmethod
+    def _download_https(url: str, target: Path) -> None:
+        if not url.startswith("https://"):
+            raise ValueError("只允许 HTTPS 下载")
+        temporary = target.with_name("." + target.name + f".{os.getpid()}.tmp")
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response, temporary.open("wb") as output:
+                shutil.copyfileobj(response, output)
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def debian_backports_maintenance(self, facts: kernel_manager.KernelFacts) -> int:
+        source = kernel_manager.debian_backports_source(facts.identity)
+        if not source:
+            print("Backports 源仅支持受支持的 Debian 版本；Ubuntu HWE 使用现有官方 apt 源，不创建第三方源。")
+            return 1
+        target = Path("/etc/apt/sources.list.d") / f"yjl-tui-kernel-{facts.identity.codename}-backports.list"
+        print(f"TUI 管理的源文件：{target}\n内容：{source}")
+        print("1. 查看状态\n2. 启用/更新该 TUI 源\n3. 移除该 TUI 源")
+        choice = input("选择 [1]: ").strip() or "1"
+        if choice == "1":
+            print(target.read_text(encoding="utf-8", errors="ignore") if target.exists() else "当前未启用。")
+            return 0
+        if choice == "2":
+            if input("输入 BACKPORTS 确认写入上述唯一源文件并执行 apt-get update：").strip() != "BACKPORTS":
+                return 2
+            target.parent.mkdir(parents=True, exist_ok=True)
+            backup = self.backup_file(target)
+            target.write_text(source + "\n", encoding="utf-8")
+            result = subprocess.run(["apt-get", "update"], check=False)
+            if result.returncode:
+                if backup:
+                    shutil.copy2(backup, target)
+                else:
+                    target.unlink(missing_ok=True)
+                print("apt-get update 失败，已恢复此前的 TUI 源状态。")
+                return result.returncode
+            subprocess.run(["apt-cache", "policy", f"linux-image-{facts.identity.architecture}"], check=False)
+            return 0
+        if choice == "3":
+            if not target.exists():
+                print("没有可移除的 TUI Backports 源。")
+                return 0
+            if input("输入 REMOVE 确认只移除上述 TUI 源文件：").strip() != "REMOVE":
+                return 2
+            self.backup_file(target)
+            target.unlink()
+            return subprocess.run(["apt-get", "update"], check=False).returncode
+        return 2
+
+    def ubuntu_mainline_maintenance(self, facts: kernel_manager.KernelFacts) -> int:
+        identity = facts.identity
+        if identity.distro_id != "ubuntu" or identity.architecture != "amd64":
+            print("Ubuntu Mainline 预编译包只对 Ubuntu amd64 提供；Debian/arm64 请使用官方 apt 或源码编译路径。")
+            return 1
+        if "enabled" in facts.secure_boot.lower():
+            print("检测到 Secure Boot 已开启。Ubuntu Mainline 包为 unsigned，不能安全自动安装。")
+            return 1
+        version = input("输入上游版本目录（如 v6.16.3）：").strip()
+        if not re.fullmatch(r"v\d+\.\d+(?:\.\d+)?(?:-rc\d+)?", version):
+            print("版本格式不合法。")
+            return 2
+        base_url = f"https://kernel.ubuntu.com/mainline/{version}"
+        try:
+            with urllib.request.urlopen(base_url + "/", timeout=30) as response:
+                page = response.read().decode("utf-8", errors="replace")
+        except (OSError, urllib.error.URLError) as exc:
+            print(f"无法读取 Ubuntu Mainline 页面：{exc}")
+            return 1
+        plan = kernel_manager.mainline_package_plan(version, page, identity.architecture)
+        if not plan:
+            print("该版本没有完整且测试成功的 amd64 包，未提供安装。")
+            return 1
+        print(f"可校验包：\n" + "\n".join(f"  {name}" for name in plan.packages))
+        if input("输入 VERIFY 下载校验清单和包，但暂不安装：").strip() != "VERIFY":
+            return 2
+        cache = CACHE / "kernel-mainline" / version
+        cache.mkdir(parents=True, exist_ok=True)
+        try:
+            self._download_https(base_url + "/CHECKSUMS", cache / "CHECKSUMS")
+            self._download_https(base_url + "/CHECKSUMS.gpg", cache / "CHECKSUMS.gpg")
+            keyring = Path("/usr/share/keyrings/ubuntu-archive-keyring.gpg")
+            if not shutil.which("gpgv") or not keyring.is_file():
+                print("缺少 gpgv 或 Ubuntu archive keyring，拒绝继续安装。")
+                return 1
+            verified = subprocess.run(
+                ["gpgv", "--keyring", str(keyring), str(cache / "CHECKSUMS.gpg"), str(cache / "CHECKSUMS")],
+                check=False,
+            )
+            if verified.returncode:
+                print("CHECKSUMS.gpg 验签失败，拒绝继续安装。")
+                return verified.returncode
+            sums = kernel_manager.mainline_sha256sums((cache / "CHECKSUMS").read_text(encoding="utf-8"), plan.packages)
+            if not sums:
+                print("CHECKSUMS 未覆盖全部候选包，拒绝继续安装。")
+                return 1
+            for package in plan.packages:
+                target = cache / package
+                self._download_https(base_url + "/" + package, target)
+                actual = hashlib.sha256(target.read_bytes()).hexdigest()
+                if actual != sums[package]:
+                    print(f"SHA-256 不匹配：{package}")
+                    return 1
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            print(f"下载或校验失败：{exc}")
+            return 1
+        if input("校验完成；输入 INSTALL 才会 dpkg 安装上列 Mainline 包：").strip() != "INSTALL":
+            print("校验文件已保留，未安装。")
+            return 2
+        result = subprocess.run(["dpkg", "-i", *(str(cache / package) for package in plan.packages)], check=False)
+        if result.returncode == 0 and shutil.which("update-grub"):
+            subprocess.run(["update-grub"], check=False)
+        if result.returncode == 0:
+            print("Mainline 包已安装并尝试刷新 GRUB。本工具不会重启；请在引导维护确认后，重启并用 uname -r 验证。")
+        return result.returncode
+
+    def kernel_source_build(self, facts: kernel_manager.KernelFacts, log: Path) -> int:
+        script = APP_DIR / "scripts" / "kernel-installer" / "kernel_installer.sh"
+        if not script.is_file() or not (script.parent / "src" / "slib.sh").is_file():
+            print("本地源码编译工具不完整，未执行。")
+            return 1
+        try:
+            free_gib = shutil.disk_usage("/").free // 1024 // 1024 // 1024
+        except OSError:
+            free_gib = 0
+        memory = command_output(["free", "-m"])
+        print(
+            "源码编译会下载内核和构建依赖，耗时较长，并占用大量 CPU、内存和磁盘。\n"
+            f"当前根分区可用：{free_gib} GiB；内存概览：\n{memory or '无法读取'}"
+        )
+        if free_gib < 8:
+            print("根分区可用空间低于 8 GiB，拒绝启动源码编译。")
+            return 1
+        print("1. kernel.org 稳定版\n2. kernel.org 长期支持版\n3. kernel.org 主线版")
+        choice = input("选择 [1]: ").strip() or "1"
+        options = {"1": "--stable", "2": "--longterm", "3": "--mainline"}
+        if choice not in options:
+            return 2
+        if input("输入 BUILD 确认开始本地源码编译（不会自动重启或卸载旧内核）：").strip() != "BUILD":
+            return 2
+        return self.interactive(["bash", str(script), options[choice]], log)
 
     @staticmethod
     def nginx_config_text() -> str:

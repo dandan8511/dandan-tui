@@ -45,6 +45,30 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertIn("grub-reboot", source)
         self.assertNotIn('"reboot"', source)
 
+    def test_system_kernel_upstream_paths_are_owned_and_verified(self):
+        source = (ROOT / "tui.py").read_text(encoding="utf-8")
+        self.assertIn("yjl-tui-kernel-", source)
+        self.assertIn("kernel_manager.debian_backports_source", source)
+        self.assertIn("kernel_manager.mainline_sha256sums", source)
+        self.assertIn("gpgv", source)
+        self.assertIn("dpkg", source)
+
+    def test_kernel_source_builder_is_local_hardened_and_launcher_cached(self):
+        root = ROOT / "scripts" / "kernel-installer"
+        self.assertTrue((root / "kernel_installer.sh").is_file())
+        self.assertTrue((root / "src" / "slib.sh").is_file())
+        self.assertIn("MIT License", (root / "LICENSE").read_text(encoding="utf-8"))
+        self.assertIn("commit", (root / "UPSTREAM.md").read_text(encoding="utf-8"))
+        source = (root / "kernel_installer.sh").read_text(encoding="utf-8")
+        self.assertNotIn("source <(curl", source)
+        self.assertNotIn("--no-check-certificate", source)
+        self.assertNotIn("self-update", source.lower())
+        launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
+        self.assertIn("download scripts/kernel-installer/kernel_installer.sh", launcher)
+        self.assertIn("download scripts/kernel-installer/src/slib.sh", launcher)
+        self.assertIn("download scripts/kernel-installer/LICENSE", launcher)
+        self.assertIn("download scripts/kernel-installer/UPSTREAM.md", launcher)
+
     def test_fixed_online_endpoints_and_local_warp_snapshot(self):
         actions = {action["id"]: action for action in self.config["actions"]}
         warp = actions["warp"]
@@ -360,6 +384,7 @@ class LocalBehaviorTests(unittest.TestCase):
         subprocess.run(["bash", "-n", "scripts/tcpfit/tcpfit.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/docker-mirror-switch.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/dockerhub-mirror.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/kernel-installer/kernel_installer.sh"], cwd=ROOT, check=True)
         subprocess.run([sys.executable, "-m", "py_compile", "tui.py"], cwd=ROOT, check=True)
 
     def test_noninteractive_commands(self):

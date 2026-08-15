@@ -3,7 +3,9 @@ import unittest
 from kernel_manager import (
     KernelFacts,
     KernelIdentity,
+    debian_backports_source,
     mainline_package_plan,
+    mainline_sha256sums,
     parse_grub_menu_entries,
     recommended_apt_plan,
     resolve_grub_entry,
@@ -65,6 +67,16 @@ class AptPlanTests(unittest.TestCase):
             ("linux-generic-hwe-22.04", "linux-headers-generic-hwe-22.04"),
         )
 
+    def test_debian_backports_source_is_limited_to_supported_debian_releases(self):
+        identity = KernelIdentity("debian", "12", "bookworm", "arm64")
+
+        self.assertEqual(
+            debian_backports_source(identity),
+            "deb http://deb.debian.org/debian bookworm-backports main",
+        )
+        self.assertIsNone(debian_backports_source(KernelIdentity("ubuntu", "24.04", "noble", "amd64")))
+        self.assertIsNone(debian_backports_source(KernelIdentity("debian", "10", "buster", "amd64")))
+
 
 class MainlinePlanTests(unittest.TestCase):
     COMPLETE_AMD64_PAGE = """
@@ -91,6 +103,13 @@ class MainlinePlanTests(unittest.TestCase):
 
         self.assertIsNone(mainline_package_plan("v7.1.8", missing, "amd64"))
         self.assertIsNone(mainline_package_plan("v7.1.8", self.COMPLETE_AMD64_PAGE, "arm64"))
+
+    def test_checksum_manifest_must_cover_every_offered_mainline_package(self):
+        plan = mainline_package_plan("v7.1.8", self.COMPLETE_AMD64_PAGE, "amd64")
+        manifest = "\n".join(f"{'a' * 64}  {package}" for package in plan.packages)
+
+        self.assertEqual(set(mainline_sha256sums(manifest, plan.packages)), set(plan.packages))
+        self.assertIsNone(mainline_sha256sums(manifest.rsplit("\n", 1)[0], plan.packages))
 
 
 class GrubParserTests(unittest.TestCase):

@@ -146,6 +146,15 @@ def recommended_apt_plan(
     return PackagePlan(label, packages, "configured-apt")
 
 
+def debian_backports_source(identity: KernelIdentity) -> str | None:
+    """Return the TUI-owned Debian backports line for supported Debian only."""
+    if identity.distro_id != "debian" or not supported_distribution(identity):
+        return None
+    if not re.fullmatch(r"[a-z0-9-]+", identity.codename):
+        return None
+    return f"deb http://deb.debian.org/debian {identity.codename}-backports main"
+
+
 def mainline_package_plan(version: str, page: str, architecture: str) -> PackagePlan | None:
     """Return package names only for complete, successful AMD64 Mainline builds."""
     if architecture != "amd64" or "Test amd64 succeeded" not in page:
@@ -170,6 +179,17 @@ def mainline_package_plan(version: str, page: str, architecture: str) -> Package
     if not any(name.endswith("_all.deb") and name.startswith("linux-headers-") for name in package_names):
         return None
     return PackagePlan(f"Ubuntu Mainline {version}", package_names, "kernel.ubuntu.com")
+
+
+def mainline_sha256sums(manifest: str, package_names: tuple[str, ...]) -> dict[str, str] | None:
+    """Read only the expected SHA-256 records and reject incomplete manifests."""
+    sums: dict[str, str] = {}
+    wanted = set(package_names)
+    for line in manifest.splitlines():
+        match = re.fullmatch(r"\s*([0-9A-Fa-f]{64})\s+\*?([^\s]+)\s*", line)
+        if match and match.group(2) in wanted:
+            sums[match.group(2)] = match.group(1).lower()
+    return sums if set(sums) == wanted else None
 
 
 def parse_grub_menu_entries(config_text: str) -> tuple[str, ...]:
