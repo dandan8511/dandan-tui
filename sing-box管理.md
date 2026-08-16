@@ -100,6 +100,7 @@ bash scripts/geosite/update.sh --sync
 4. 独立 Geosite rule set 分流（例如 `geosite-github`）
 5. DNS IPv4 / IPv6 优先级
 6. 配置备份与还原
+7. 重新应用当前受管配置
 ```
 
 独立规则集只接受 SagerNet `geosite-*.srs` 名称，并与预置服务使用相同的下载、
@@ -122,6 +123,10 @@ TUI 自己拥有的配置片段将避免覆盖 fscarmen 的基础文件：
 `geosite-openai -> ovh-openai`。受管分片会同时明确写入 `route.final: direct`：不论
 SOCKS5 出站在合并后排在什么位置，未命中的流量都固定从本机直连，不会意外变成全局
 SOCKS5 代理。
+
+升级 TUI 后，已有受管配置的机器可直接选择 `7. 重新应用当前受管配置`。它会使用现有
+SOCKS5、规则和 DNS 状态生成新分片、完成 staged `sing-box check` 后重载服务；不需要
+重复填写 SOCKS5 信息或修改已有规则。
 
 ## 应用与验证
 

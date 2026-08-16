@@ -3,6 +3,7 @@ import socket
 import threading
 import unittest
 from unittest import mock
+from io import StringIO
 from pathlib import Path
 
 from singbox_manager import (
@@ -130,6 +131,23 @@ class OpenRCProcessTests(unittest.TestCase):
             self.assertEqual(manager.reload_service(), (True, "active"))
 
         self.assertEqual(run.call_args.args[0], ["systemctl", "reload", "sing-box"])
+
+
+class InteractiveTests(unittest.TestCase):
+    def test_reapply_menu_uses_existing_managed_state(self):
+        manager = SingBoxManager(Path("/tmp/yjl-test-sing-box"))
+        state = {"version": 1, "socks": [], "routes": {}, "dns_strategy": None}
+
+        with mock.patch.object(manager, "compatible", return_value=(True, "ok")), \
+             mock.patch.object(manager, "status_lines", return_value=[]), \
+             mock.patch.object(manager, "current_state", return_value=state) as current_state, \
+             mock.patch.object(manager, "apply_state", return_value="applied") as apply_state, \
+             mock.patch("builtins.input", side_effect=["7", "", "0"]), \
+             mock.patch("sys.stdout", new_callable=StringIO):
+            self.assertEqual(manager.interactive(), 0)
+
+        current_state.assert_called_once_with()
+        apply_state.assert_called_once_with(state)
 
 
 class SocksProbeTests(unittest.TestCase):

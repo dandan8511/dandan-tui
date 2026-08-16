@@ -619,6 +619,7 @@ class SingBoxManager:
             print("4. 服务分流管理")
             print("5. DNS IPv4 / IPv6 优先级")
             print("6. 配置备份与还原")
+            print("7. 重新应用当前受管配置")
             print("0. 返回")
             choice = input("选择：").strip()
             try:
@@ -637,6 +638,8 @@ class SingBoxManager:
                     self.menu_dns()
                 elif choice == "6":
                     self.menu_backups()
+                elif choice == "7":
+                    print(self.apply_state(self.current_state()))
                 else:
                     print("无效选择。")
             except ManagerError as exc:
