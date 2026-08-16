@@ -243,8 +243,11 @@ def build_managed_route_fragment(state: dict[str, Any], rules_dir: Path) -> dict
     result: dict[str, Any] = {}
     if outbounds:
         result["outbounds"] = outbounds
-    if rule_sets or rules:
-        result["route"] = {"rule_set": rule_sets, "rules": rules}
+    if outbounds or rule_sets or rules:
+        # This fragment sorts before fscarmen's 01_outbounds.json. sing-box
+        # otherwise falls back to the first merged outbound, which would turn
+        # a newly added SOCKS5 proxy into an unintended global proxy.
+        result["route"] = {"final": "direct", "rule_set": rule_sets, "rules": rules}
     return result
 
 

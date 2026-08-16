@@ -59,11 +59,24 @@ class FragmentTests(unittest.TestCase):
         fragment = build_managed_route_fragment(state, Path("/etc/sing-box/rules"))
 
         self.assertEqual(fragment["outbounds"][0]["tag"], "ovh-openai")
+        self.assertEqual(fragment["route"]["final"], "direct")
         tags = [item["tag"] for item in fragment["route"]["rule_set"]]
         self.assertEqual(tags, ["yjl-geosite-anthropic", "yjl-geosite-openai"])
         self.assertNotIn("geosite-openai", tags)
         self.assertEqual(fragment["route"]["rules"][1]["outbound"], "ovh-openai")
         self.assertEqual(fragment["route"]["rule_set"][1]["path"], "/etc/sing-box/rules/geosite-openai.srs")
+
+    def test_socks_only_fragment_keeps_unmatched_traffic_direct(self):
+        state = {
+            "version": 1,
+            "socks": [SocksProxy("france", "127.0.0.1", 1080, "user", "password").__dict__],
+            "routes": {},
+            "dns_strategy": None,
+        }
+
+        fragment = build_managed_route_fragment(state, Path("/etc/sing-box/rules"))
+
+        self.assertEqual(fragment["route"], {"final": "direct", "rule_set": [], "rules": []})
 
     def test_dns_and_state_normalization(self):
         self.assertEqual(build_dns_fragment("prefer_ipv4"), {"dns": {"strategy": "prefer_ipv4"}})

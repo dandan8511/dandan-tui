@@ -119,7 +119,9 @@ TUI 自己拥有的配置片段将避免覆盖 fscarmen 的基础文件：
 ```
 
 `00_` 规则优先于 fscarmen 默认 `03_route.json`，因此可以可靠实现
-`geosite-openai -> ovh-openai`，而未命中的流量仍由原有 fscarmen 配置处理。
+`geosite-openai -> ovh-openai`。受管分片会同时明确写入 `route.final: direct`：不论
+SOCKS5 出站在合并后排在什么位置，未命中的流量都固定从本机直连，不会意外变成全局
+SOCKS5 代理。
 
 ## 应用与验证
 
