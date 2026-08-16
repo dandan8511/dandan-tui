@@ -221,6 +221,66 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertNotIn("YJL-TUI", source)
         self.assertNotIn("--YJL-TUI-VLESS-WS-TLS", source)
 
+    def test_geosite_update_is_a_vendored_fscarmen_action(self):
+        actions = {action["id"]: action for action in self.config["actions"]}
+        action = actions["geosite_update"]
+        self.assertEqual(action["category"], "fscarmen_singbox")
+        self.assertEqual(action["kind"], "local_script")
+        self.assertEqual(action["path"], "scripts/geosite/update.sh")
+        self.assertEqual(action["args"], ["--sync"])
+        self.assertTrue(action["needs_root"])
+
+        updater = ROOT / action["path"]
+        self.assertTrue(updater.is_file())
+        source = updater.read_text(encoding="utf-8")
+        self.assertIn("SagerNet/sing-geosite", source)
+        self.assertIn("--vendor", source)
+        self.assertIn("--sync", source)
+        self.assertIn("MIRROR_RAW", source)
+        self.assertIn("rule-set.tar.gz", source)
+        self.assertIn("local_vendor_rule", source)
+        self.assertIn('mkdir -p -- "$extracted"', source)
+        self.assertTrue((ROOT / "scripts/geosite/SHA256SUMS").is_file())
+        self.assertTrue((ROOT / "scripts/geosite/UPSTREAM.json").is_file())
+
+    def test_geosite_vendor_snapshot_has_a_complete_manifest(self):
+        geosite = ROOT / "scripts/geosite"
+        metadata = json.loads((geosite / "UPSTREAM.json").read_text(encoding="utf-8"))
+        rules = sorted((geosite / "rule-set").rglob("*.srs"))
+        manifest = [line for line in (geosite / "SHA256SUMS").read_text(encoding="utf-8").splitlines() if line]
+        self.assertGreater(len(rules), 100)
+        self.assertEqual(metadata["rule_set_count"], len(rules))
+        self.assertEqual(len(manifest), len(rules))
+        for name in ("geosite-openai.srs", "geosite-anthropic.srs", "geosite-google-gemini.srs"):
+            self.assertTrue((geosite / "rule-set" / name).is_file())
+
+    def test_launcher_downloads_geosite_update_files(self):
+        launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
+        for relative in (
+            "scripts/geosite/update.sh",
+            "scripts/geosite/SHA256SUMS",
+            "scripts/geosite/UPSTREAM.json",
+            "scripts/geosite/rule-set.tar.gz",
+        ):
+            self.assertIn(f"download {relative}", launcher)
+            self.assertIn(f'"${{TEMP_DIR}}/{relative}"', launcher)
+            self.assertIn(f'"${{CACHE_ROOT}}/{relative}"', launcher)
+
+    def test_singbox_manager_is_a_cached_local_action(self):
+        actions = {action["id"]: action for action in self.config["actions"]}
+        action = actions["singbox_manager"]
+        self.assertEqual(action["category"], "fscarmen_singbox")
+        self.assertEqual(action["kind"], "local_script")
+        self.assertEqual(action["path"], "singbox_manager.py")
+        self.assertEqual(action["interpreter"], "python3")
+        self.assertTrue(action["needs_root"])
+        self.assertTrue((ROOT / action["path"]).is_file())
+
+        launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
+        self.assertIn("download singbox_manager.py", launcher)
+        self.assertIn('"${TEMP_DIR}/singbox_manager.py"', launcher)
+        self.assertIn('"${CACHE_ROOT}/singbox_manager.py"', launcher)
+
     def test_fscarmen_warp_local_clone_updates_from_this_repository(self):
         action = next(action for action in self.config["actions"] if action["id"] == "warp")
         source = (ROOT / action["path"]).read_text(encoding="utf-8")
