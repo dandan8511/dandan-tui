@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -366,6 +367,17 @@ class SingBoxManager:
             return "未识别 init 系统"
         return (result.stdout + result.stderr).strip() or ("运行中" if result.returncode == 0 else "未运行")
 
+    def running_core_pids(self) -> list[str]:
+        """Find actual fscarmen core processes without relying on an OpenRC pidfile."""
+        expected = f"{self.binary} run -C {self.conf_dir}"
+        result = subprocess.run(["ps", "-o", "pid,args"], text=True, capture_output=True, check=False)
+        pids: list[str] = []
+        for line in result.stdout.splitlines():
+            parts = line.strip().split(None, 1)
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].strip() == expected:
+                pids.append(parts[0])
+        return pids
+
     def binary_version(self) -> str:
         result = subprocess.run([str(self.binary), "version"], text=True, capture_output=True, check=False)
         return (result.stdout + result.stderr).strip().splitlines()[0] if result.returncode == 0 else "读取失败"
@@ -485,8 +497,22 @@ class SingBoxManager:
             return True, "已按 YJL_SINGBOX_SKIP_RELOAD 跳过服务重载"
         kind = self.service_kind()
         if kind == "openrc":
+            running = self.running_core_pids()
+            if running:
+                result = subprocess.run(["kill", "-HUP", *running], text=True, capture_output=True, check=False)
+                time.sleep(1)
+                active = self.running_core_pids()
+                if result.returncode == 0 and active:
+                    return True, f"已向运行中的 sing-box 进程发送 HUP（PID：{', '.join(active)}）"
+                return False, "sing-box HUP 热加载失败，进程未保持运行。"
+
             subprocess.run(["rc-service", SERVICE_NAME, "zap"], text=True, capture_output=True, check=False)
             result = subprocess.run(["rc-service", SERVICE_NAME, "start"], text=True, capture_output=True, check=False)
+            time.sleep(1)
+            active = self.running_core_pids()
+            if result.returncode == 0 and active:
+                return True, f"已通过 OpenRC 启动 sing-box（PID：{', '.join(active)}）"
+            return False, (result.stdout + result.stderr).strip() or "OpenRC 未启动 sing-box 进程。"
         elif kind == "systemd":
             result = subprocess.run(["systemctl", "reload", SERVICE_NAME], text=True, capture_output=True, check=False)
         else:

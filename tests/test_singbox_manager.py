@@ -2,11 +2,13 @@ import json
 import socket
 import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from singbox_manager import (
     ManagerError,
     SocksProxy,
+    SingBoxManager,
     build_dns_fragment,
     build_managed_route_fragment,
     normalize_state,
@@ -80,6 +82,41 @@ class FragmentTests(unittest.TestCase):
         self.assertEqual([item["tag"] for item in state["socks"]], ["ok"])
         self.assertEqual(state["routes"], {"geosite-openai": "ok"})
         self.assertEqual(state["dns_strategy"], "ipv6_only")
+
+
+class OpenRCProcessTests(unittest.TestCase):
+    def test_running_core_pids_uses_real_process_command_not_pidfile(self):
+        manager = SingBoxManager(Path("/tmp/yjl-test-sing-box"))
+        expected = f"{manager.binary} run -C {manager.conf_dir}"
+        completed = mock.Mock(stdout=f"  123 {expected}\n  456 unrelated\n", stderr="", returncode=0)
+
+        with mock.patch("singbox_manager.subprocess.run", return_value=completed) as run:
+            self.assertEqual(manager.running_core_pids(), ["123"])
+
+        self.assertEqual(run.call_args.args[0], ["ps", "-o", "pid,args"])
+
+    def test_openrc_reload_prefers_hup_for_a_running_core(self):
+        manager = SingBoxManager(Path("/tmp/yjl-test-sing-box"))
+        completed = mock.Mock(stdout="", stderr="", returncode=0)
+
+        with mock.patch.object(manager, "service_kind", return_value="openrc"), \
+             mock.patch.object(manager, "running_core_pids", side_effect=[["123"], ["123"]]), \
+             mock.patch("singbox_manager.subprocess.run", return_value=completed) as run, \
+             mock.patch("singbox_manager.time.sleep"):
+            self.assertEqual(manager.reload_service(), (True, "已向运行中的 sing-box 进程发送 HUP（PID：123）"))
+
+        self.assertEqual(run.call_args.args[0], ["kill", "-HUP", "123"])
+
+    def test_systemd_reload_requires_an_active_service(self):
+        manager = SingBoxManager(Path("/tmp/yjl-test-sing-box"))
+        completed = mock.Mock(stdout="", stderr="", returncode=0)
+
+        with mock.patch.object(manager, "service_kind", return_value="systemd"), \
+             mock.patch.object(manager, "service_status", return_value="active"), \
+             mock.patch("singbox_manager.subprocess.run", return_value=completed) as run:
+            self.assertEqual(manager.reload_service(), (True, "active"))
+
+        self.assertEqual(run.call_args.args[0], ["systemctl", "reload", "sing-box"])
 
 
 class SocksProbeTests(unittest.TestCase):

@@ -132,9 +132,13 @@ TUI 自己拥有的配置片段将避免覆盖 fscarmen 的基础文件：
 -> 检查 JSON 结构
 -> sing-box check -C /etc/sing-box/conf
 -> 原子替换受管文件
--> systemd reload 或 Alpine/OpenRC zap + start
+-> systemd reload；Alpine/OpenRC 优先向实际运行的 sing-box 进程发送 HUP，未发现进程才 zap + start
 -> 确认服务仍运行；失败则自动恢复备份
 ```
+
+OpenRC 的 pidfile 或 `rc-service status` 可能因旧的启动失败状态而失真。管理器不会仅凭
+该状态报成功：它会精确匹配 `/etc/sing-box/sing-box run -C /etc/sing-box/conf` 进程，HUP 后
+确认进程仍存在；若没有运行进程，才使用 OpenRC 启动并再次确认真实进程。
 
 第一版结论只报告配置层面的成功或失败：SOCKS5 连接/认证、规则文件同步、规则写入、
 sing-box 配置检查和服务状态。它不实施流媒体解锁检测，也不会把站点的 403、账号或
