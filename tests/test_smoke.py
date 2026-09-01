@@ -377,6 +377,25 @@ Flags: fpu vmx avx2
             self.assertIn(field, profile)
             self.assertTrue(profile[field])
 
+    def test_yjl_argo_is_local_advanced_menu_entry_and_launcher_cached(self):
+        actions = {action["id"]: action for action in self.config["actions"]}
+        action = actions["yjl_argo"]
+        self.assertEqual(action["category"], "advanced")
+        self.assertEqual(action["kind"], "local_script")
+        self.assertEqual(action["path"], "yjl-argo/yjl-argo.sh")
+        self.assertEqual(action["interpreter"], "bash")
+        self.assertTrue(action["needs_root"])
+
+        source = (ROOT / action["path"]).read_text(encoding="utf-8")
+        self.assertIn("Cloudflare Tunnel", source)
+        self.assertIn("systemd", source)
+        self.assertIn("openrc", source)
+
+        launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
+        self.assertIn("download yjl-argo/yjl-argo.sh", launcher)
+        self.assertIn('"${TEMP_DIR}/yjl-argo/yjl-argo.sh"', launcher)
+        self.assertIn('"${CACHE_ROOT}/yjl-argo/yjl-argo.sh"', launcher)
+
     def test_virtualization_profile_has_detection_and_dmi_fields(self):
         profile = tui.virtualization_profile({"虚拟化厂商": "未检测到", "指令集": ""})
         for field in ("虚拟化环境", "运行形态", "虚拟机检测", "容器检测", "DMI 产品型号", "宿主机 CPU 读取"):
@@ -461,6 +480,8 @@ class LocalBehaviorTests(unittest.TestCase):
         subprocess.run(["bash", "-n", "scripts/docker-mirror-switch.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/dockerhub-mirror.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/kernel-installer/kernel_installer.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "yjl-argo/yjl-argo.sh"], cwd=ROOT, check=True)
+        subprocess.run(["sh", "-n", "yjl-argo/install.sh"], cwd=ROOT, check=True)
         subprocess.run([sys.executable, "-m", "py_compile", "tui.py"], cwd=ROOT, check=True)
 
     def test_noninteractive_commands(self):
@@ -479,6 +500,7 @@ class LocalBehaviorTests(unittest.TestCase):
         self.assertIn("onepanel", listing.stdout)
         self.assertIn("fscarmen_singbox_menu", listing.stdout)
         self.assertIn("dockerhub_mirror", listing.stdout)
+        self.assertIn("yjl_argo", listing.stdout)
         self.assertIn("system_kernel_maintenance", listing.stdout)
         self.assertIn("grub_manage", listing.stdout)
         self.assertNotIn("[danger]", listing.stdout)

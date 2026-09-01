@@ -98,6 +98,7 @@ download scripts/kernel-installer/UPSTREAM.md
 download scripts/ubuntu-mainline-signing-key.gpg
 download scripts/ubuntu-mainline-signing-key.md
 download tools/nft-forward/install.sh
+download yjl-argo/yjl-argo.sh
 chmod 700 "${TEMP_DIR}/run.sh"
 chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/kernel_manager.py" "${TEMP_DIR}/nginx_manager.py" "${TEMP_DIR}/singbox_manager.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/fscarmen-sing-box.sh" "${TEMP_DIR}/scripts/fscarmen-warp.sh" "${TEMP_DIR}/scripts/kernel-installer/LICENSE" "${TEMP_DIR}/scripts/kernel-installer/UPSTREAM.md"
 chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${TEMP_DIR}/scripts/tcpfit/tcpfit.sh" "${TEMP_DIR}/scripts/docker-mirror-switch.sh" "${TEMP_DIR}/tools/nft-forward/install.sh"
@@ -108,6 +109,7 @@ chmod 600 "${TEMP_DIR}/scripts/geosite/rule-set.tar.gz"
 chmod 700 "${TEMP_DIR}/scripts/kernel-installer/kernel_installer.sh"
 chmod 600 "${TEMP_DIR}/scripts/kernel-installer/src/slib.sh"
 chmod 600 "${TEMP_DIR}/scripts/ubuntu-mainline-signing-key.gpg" "${TEMP_DIR}/scripts/ubuntu-mainline-signing-key.md"
+chmod 700 "${TEMP_DIR}/yjl-argo/yjl-argo.sh"
 mv -f -- "${TEMP_DIR}/run.sh" "${CACHE_ROOT}/run.sh"
 mv -f -- "${TEMP_DIR}/tui.py" "${CACHE_ROOT}/tui.py"
 mv -f -- "${TEMP_DIR}/kernel_manager.py" "${CACHE_ROOT}/kernel_manager.py"
@@ -135,6 +137,8 @@ mv -f -- "${TEMP_DIR}/scripts/ubuntu-mainline-signing-key.gpg" "${CACHE_ROOT}/sc
 mv -f -- "${TEMP_DIR}/scripts/ubuntu-mainline-signing-key.md" "${CACHE_ROOT}/scripts/ubuntu-mainline-signing-key.md"
 mkdir -p -- "${CACHE_ROOT}/tools/nft-forward"
 mv -f -- "${TEMP_DIR}/tools/nft-forward/install.sh" "${CACHE_ROOT}/tools/nft-forward/install.sh"
+mkdir -p -- "${CACHE_ROOT}/yjl-argo"
+mv -f -- "${TEMP_DIR}/yjl-argo/yjl-argo.sh" "${CACHE_ROOT}/yjl-argo/yjl-argo.sh"
 mkdir -p -- "${CACHE_ROOT}/scripts/tcpfit"
 mv -f -- "${TEMP_DIR}/scripts/tcpfit/tcpfit.sh" "${CACHE_ROOT}/scripts/tcpfit/tcpfit.sh"
 
