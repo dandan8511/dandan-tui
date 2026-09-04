@@ -221,6 +221,17 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertNotIn("YJL-TUI", source)
         self.assertNotIn("--YJL-TUI-VLESS-WS-TLS", source)
 
+    def test_fscarmen_tcp_brutal_menu9_is_local_clone(self):
+        actions = {action["id"]: action for action in self.config["actions"]}
+        action = actions["fscarmen_tcp_brutal_install"]
+        self.assertEqual(action["category"], "fscarmen_singbox")
+        self.assertEqual(action["kind"], "local_script")
+        self.assertEqual(action["path"], "scripts/install-tcp-brutal.sh")
+        self.assertEqual(action["args"], [])
+        self.assertTrue((ROOT / action["path"]).is_file())
+        self.assertIn("菜单第 9 项", action["description"])
+        self.assertNotIn("tcp.hy2.sh", action.get("url", ""))
+
     def test_geosite_update_is_a_vendored_fscarmen_action(self):
         actions = {action["id"]: action for action in self.config["actions"]}
         action = actions["geosite_update"]
