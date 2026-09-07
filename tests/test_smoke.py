@@ -173,6 +173,52 @@ class ConfigSmokeTests(unittest.TestCase):
         for protocol in ("ShadowTLS", "Shadowsocks", "Trojan", "VMess + WS", "VLESS + WS + TLS", "H2 + Reality", "gRPC + Reality"):
             self.assertIn(protocol, actions[0]["description"])
 
+    def test_tcp_brutal_category_has_online_and_vendored_offline_actions(self):
+        categories = {category["id"]: category["title"] for category in self.config["categories"]}
+        self.assertEqual(categories.get("tcp_brutal"), "tcp-brutal")
+        actions = [action for action in self.config["actions"] if action.get("category") == "tcp_brutal"]
+        self.assertEqual([action["id"] for action in actions], ["tcp_brutal_online", "tcp_brutal_offline"])
+        for action, mode in zip(actions, ("online", "offline")):
+            self.assertEqual(action["kind"], "local_script")
+            self.assertEqual(action["path"], "scripts/tcp-brutal-manager.sh")
+            self.assertEqual(action["args"], [mode])
+            self.assertTrue(action["needs_root"])
+
+        manager = ROOT / "scripts/tcp-brutal-manager.sh"
+        source = manager.read_text(encoding="utf-8")
+        self.assertIn("https://tcp.hy2.sh/", source)
+        self.assertIn("install --local", source)
+        self.assertIn("capture_live_rules", source)
+        self.assertIn("ensure_persistence_if_saved_rules", source)
+        self.assertIn('route" != "yes', source)
+        self.assertIn("grep -x './dkms_source_tree/dkms.conf' > /dev/null", source)
+        self.assertIn("detect_ssh_peer", source)
+        self.assertIn("detect_active_tcp_peers", source)
+        self.assertIn("SSH_CONNECTION", source)
+        self.assertIn("systemd", source)
+        self.assertIn("openrc", source)
+        self.assertIn("1000", source)
+        self.assertTrue((ROOT / "scripts/tcp-brutal/LICENSE").is_file())
+        self.assertTrue((ROOT / "scripts/tcp-brutal/dkms.tar.gz").is_file())
+        self.assertTrue((ROOT / "scripts/tcp-brutal/UPSTREAM.md").is_file())
+
+    def test_tcp_brutal_manager_validates_and_normalizes_ipv4_prefixes(self):
+        script = "source scripts/tcp-brutal-manager.sh; normalize_prefix 188.165.226.219; normalize_prefix 1.2.3.4/24; SSH_CONNECTION='198.51.100.9 123 192.0.2.1 22'; detect_ssh_peer; ! normalize_prefix 1.2.3.999/32; ! normalize_prefix 1.2.3.4/33; is_rate 1000; ! is_rate 0"
+        result = subprocess.run(["bash", "-c", script], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["188.165.226.219/32", "1.2.3.4/24", "198.51.100.9"])
+
+    def test_launcher_caches_tcp_brutal_offline_runtime_assets(self):
+        launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
+        for relative in (
+            "scripts/tcp-brutal-manager.sh",
+            "scripts/tcp-brutal/scripts/install_dkms.sh",
+            "scripts/tcp-brutal/dkms.tar.gz",
+        ):
+            self.assertIn(f"download {relative}", launcher)
+            self.assertIn(f'"${{TEMP_DIR}}/{relative}"', launcher)
+            self.assertIn(f'"${{CACHE_ROOT}}/{relative}"', launcher)
+
     def test_tcpfit_is_vendored_tcp_menu_entry(self):
         actions = {action["id"]: action for action in self.config["actions"]}
         self.assertNotIn("tcp_exit", actions)
@@ -484,6 +530,9 @@ class LocalBehaviorTests(unittest.TestCase):
         subprocess.run(["bash", "-n", "launch.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "run.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/install-tcp-brutal.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/tcp-brutal-manager.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/tcp-brutal/install-local.sh"], cwd=ROOT, check=True)
+        subprocess.run(["bash", "-n", "scripts/tcp-brutal/scripts/install_dkms.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/nekoneko-tools.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/fscarmen-sing-box.sh"], cwd=ROOT, check=True)
         subprocess.run(["bash", "-n", "scripts/fscarmen-warp.sh"], cwd=ROOT, check=True)

@@ -82,6 +82,9 @@ download singbox_manager.py
 download scripts.json
 download tcp_profiles.json
 download scripts/install-tcp-brutal.sh
+download scripts/tcp-brutal-manager.sh
+download scripts/tcp-brutal/scripts/install_dkms.sh
+download scripts/tcp-brutal/dkms.tar.gz
 download scripts/fscarmen-sing-box.sh
 download scripts/fscarmen-warp.sh
 download scripts/tcpfit/tcpfit.sh
@@ -101,7 +104,8 @@ download tools/nft-forward/install.sh
 download yjl-argo/yjl-argo.sh
 chmod 700 "${TEMP_DIR}/run.sh"
 chmod 600 "${TEMP_DIR}/tui.py" "${TEMP_DIR}/kernel_manager.py" "${TEMP_DIR}/nginx_manager.py" "${TEMP_DIR}/singbox_manager.py" "${TEMP_DIR}/scripts.json" "${TEMP_DIR}/tcp_profiles.json" "${TEMP_DIR}/scripts/fscarmen-sing-box.sh" "${TEMP_DIR}/scripts/fscarmen-warp.sh" "${TEMP_DIR}/scripts/kernel-installer/LICENSE" "${TEMP_DIR}/scripts/kernel-installer/UPSTREAM.md"
-chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${TEMP_DIR}/scripts/tcpfit/tcpfit.sh" "${TEMP_DIR}/scripts/docker-mirror-switch.sh" "${TEMP_DIR}/tools/nft-forward/install.sh"
+chmod 700 "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${TEMP_DIR}/scripts/tcp-brutal-manager.sh" "${TEMP_DIR}/scripts/tcp-brutal/scripts/install_dkms.sh" "${TEMP_DIR}/scripts/tcpfit/tcpfit.sh" "${TEMP_DIR}/scripts/docker-mirror-switch.sh" "${TEMP_DIR}/tools/nft-forward/install.sh"
+chmod 600 "${TEMP_DIR}/scripts/tcp-brutal/dkms.tar.gz"
 chmod 700 "${TEMP_DIR}/scripts/dockerhub-mirror.sh"
 chmod 700 "${TEMP_DIR}/scripts/geosite/update.sh"
 chmod 600 "${TEMP_DIR}/scripts/geosite/SHA256SUMS" "${TEMP_DIR}/scripts/geosite/UPSTREAM.json"
@@ -119,6 +123,10 @@ mv -f -- "${TEMP_DIR}/scripts.json" "${CACHE_ROOT}/scripts.json"
 mv -f -- "${TEMP_DIR}/tcp_profiles.json" "${CACHE_ROOT}/tcp_profiles.json"
 mkdir -p -- "${CACHE_ROOT}/scripts"
 mv -f -- "${TEMP_DIR}/scripts/install-tcp-brutal.sh" "${CACHE_ROOT}/scripts/install-tcp-brutal.sh"
+mv -f -- "${TEMP_DIR}/scripts/tcp-brutal-manager.sh" "${CACHE_ROOT}/scripts/tcp-brutal-manager.sh"
+mkdir -p -- "${CACHE_ROOT}/scripts/tcp-brutal/scripts"
+mv -f -- "${TEMP_DIR}/scripts/tcp-brutal/scripts/install_dkms.sh" "${CACHE_ROOT}/scripts/tcp-brutal/scripts/install_dkms.sh"
+mv -f -- "${TEMP_DIR}/scripts/tcp-brutal/dkms.tar.gz" "${CACHE_ROOT}/scripts/tcp-brutal/dkms.tar.gz"
 mv -f -- "${TEMP_DIR}/scripts/fscarmen-sing-box.sh" "${CACHE_ROOT}/scripts/fscarmen-sing-box.sh"
 mv -f -- "${TEMP_DIR}/scripts/fscarmen-warp.sh" "${CACHE_ROOT}/scripts/fscarmen-warp.sh"
 mv -f -- "${TEMP_DIR}/scripts/docker-mirror-switch.sh" "${CACHE_ROOT}/scripts/docker-mirror-switch.sh"

@@ -79,7 +79,7 @@ bash <(curl -fsSL "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/
 bash <(wget -qO- "https://raw.githubusercontent.com/dandan8511/dandan-tui/main/launch.sh?v=$(date +%s)")
 ```
 
-`launch.sh` 每次从 `main` 下载 TUI 本体、内核管理模块、菜单配置、本地 TCP 脚本、Docker 镜像源检测脚本，以及 fscarmen、tcpfit、nft-forward、kernel-installer 的本地快照到
+`launch.sh` 每次从 `main` 下载 TUI 本体、内核管理模块、菜单配置、本地 TCP 脚本、Docker 镜像源检测脚本，以及 fscarmen、tcp-brutal、tcpfit、nft-forward、kernel-installer 的本地快照到
 `${XDG_CACHE_HOME:-~/.cache}/dandan-tui`，然后启动。要固定某个版本：
 
 ```bash
@@ -87,6 +87,37 @@ YJL_TUI_REF=提交SHA bash <(curl -fsSL "https://raw.githubusercontent.com/danda
 ```
 
 需要 `bash` 和 `python3`；在线安装或检测按动作需要 `curl`、`wget`、`openssl`、`iproute2` 等工具。
+
+## tcp-brutal
+
+`tcp-brutal` 分类提供两个 root 动作：在线安装会从 `https://tcp.hy2.sh/` 临时下载当前官方
+安装器，离线安装会执行仓库内 `scripts/tcp-brutal/` 的完整 `HyNetworks/tcp-brutal` 源码快照和
+已固定哈希的 `dkms.tar.gz`。离线模式不会请求 tcp-brutal 上游源码、Hysteria API 或 GitHub
+Release，但 DKMS、编译器和正在运行的内核头文件仍需要从系统软件源安装。
+
+安装完成后不会把示例 IP 或服务器自身 IP 写进规则。它会先读取启动 TUI 的 `SSH_CONNECTION`，自动
+将当前管理客户端的公网 IPv4 作为发送目标；没有 SSH 来源时，才从当前已建立的非 SSH TCP 连接中
+识别唯一对端。两种识别都失败时才要求手工填写一次，存在多个对端则列出编号让你选择。规则添加前会
+执行 `ip route get <目标 IP>`，`brutalctl` 会据此自动复制正确下一跳并写出 `proto 233` 路由。
+例如服务器向某个客户端发送流量时，目标应是客户端地址：
+
+```bash
+brutalctl add 188.165.226.219/32 1000
+```
+
+速率单位是 Mbps，默认值为 `1000`。本工具将每条确认成功的规则保存为
+`/etc/tcp-brutal/rules.conf`，并在 Debian/Ubuntu 上安装、启用
+`tcp-brutal-rules.service`，在 Alpine 上安装、启用同名 OpenRC 服务。开机后服务会重新执行
+保存的 `brutalctl add` 命令，因此模块规则和 `proto 233` 路由不再因重启丢失。规则只影响之后
+新建的 TCP 连接；已有连接需重连后才会命中。
+
+安装后也可直接管理规则：
+
+```bash
+bash scripts/tcp-brutal-manager.sh add 188.165.226.219/32 1000
+bash scripts/tcp-brutal-manager.sh list
+bash scripts/tcp-brutal-manager.sh del 188.165.226.219/32
+```
 
 ## 猴哥 nft-forward 本地副本
 
