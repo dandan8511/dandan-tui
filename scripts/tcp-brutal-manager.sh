@@ -76,23 +76,6 @@ has_usable_target_route() {
     [[ "$route" != local\ * ]]
 }
 
-detect_ssh_peer() {
-    local peer="${SSH_CONNECTION%% *}"
-    is_ipv4 "$peer" && printf '%s\n' "$peer"
-}
-
-detect_active_tcp_peers() {
-    local line peer address
-    while IFS= read -r line; do
-        [[ "$line" == *'users:(("sshd"'* ]] && continue
-        peer="$(awk '{print $5}' <<< "$line")"
-        address="${peer%:*}"
-        is_ipv4 "$address" || continue
-        has_usable_target_route "$address" || continue
-        printf '%s\n' "$address"
-    done < <(ss -Htnp state established 2>/dev/null || true) | sort -u
-}
-
 init_system() {
     local distro_id=""
     if [ -r /etc/os-release ]; then
@@ -254,6 +237,70 @@ list_rules() {
     fi
 }
 
+show_install_status() {
+    note "TCP Brutal 本机状态"
+    if [ -d /sys/module/brutal ]; then
+        note "模块：已加载"
+    else
+        note "模块：未加载"
+    fi
+    if [ -x "$BRUTALCTL" ]; then
+        note "brutalctl：${BRUTALCTL}"
+    else
+        note "brutalctl：未安装"
+    fi
+    case "$(init_system 2>/dev/null || true)" in
+        systemd)
+            printf '规则服务：'
+            systemctl is-active tcp-brutal-rules.service 2>/dev/null || true
+            ;;
+        openrc)
+            printf '规则服务：'
+            rc-service tcp-brutal-rules status 2>/dev/null || true
+            ;;
+    esac
+}
+
+reapply_saved_rules() {
+    [ -s "$RULES_FILE" ] || die "没有已保存的规则：${RULES_FILE}"
+    install_persistence
+    "$RESTORE_SCRIPT"
+    note "已重新应用 ${RULES_FILE} 中的规则。"
+}
+
+manage_interactively() {
+    local choice target rate
+    while true; do
+        note
+        show_install_status
+        list_rules
+        cat <<'EOF'
+
+1. 新增远端目的地址规则（默认 1000 Mbps）
+2. 删除规则
+3. 重新应用已保存规则
+0. 返回 TUI
+EOF
+        read -r -p "选择操作: " choice
+        case "$choice" in
+            1)
+                read -r -p "远端 IPv4/CIDR: " target
+                [ -n "$target" ] || { note "未输入目标，已取消。"; continue; }
+                read -r -p "总速率 Mbps [1000]: " rate
+                add_rule "$target" "${rate:-1000}"
+                ;;
+            2)
+                read -r -p "删除的 IPv4/CIDR: " target
+                [ -n "$target" ] || { note "未输入目标，已取消。"; continue; }
+                remove_rule "$target"
+                ;;
+            3) reapply_saved_rules ;;
+            0|'') return ;;
+            *) note "无效选择。" ;;
+        esac
+    done
+}
+
 remove_rule() {
     local prefix temporary
     prefix="$(normalize_prefix "$1")" || die "目标必须是 IPv4 或 IPv4/CIDR。"
@@ -269,50 +316,13 @@ remove_rule() {
 }
 
 configure_routes() {
-    local target rate answer choice ssh_peer
-    local -a candidates
     note
     note "TCP Brutal 按目标地址匹配发送方向的新 TCP 连接。"
-    note "服务器通常应填写客户端/对端公网 IP，不是服务器自己的 IP；下面列出本机地址仅供核对。"
+    note "本次只安装模块，不会自动添加任何规则。"
+    note "目标必须是本机将要连接的远端 IP；服务器自己的 IP 是本地地址，不能作为 brutalctl 目标。"
     show_local_addresses
-
-    ssh_peer="$(detect_ssh_peer || true)"
-    if [ -n "$ssh_peer" ] && has_usable_target_route "$ssh_peer"; then
-        note "已从 SSH_CONNECTION 自动识别当前管理客户端：${ssh_peer}，按默认 1000 Mbps 添加。"
-        add_rule "${ssh_peer}/32" 1000
-        return
-    fi
-
-    mapfile -t candidates < <(detect_active_tcp_peers)
-    if [ "${#candidates[@]}" -eq 1 ]; then
-        note "已从当前非 SSH TCP 连接自动识别唯一对端：${candidates[0]}，按默认 1000 Mbps 添加。"
-        add_rule "${candidates[0]}/32" 1000
-        return
-    fi
-    if [ "${#candidates[@]}" -gt 1 ]; then
-        note "检测到多个当前 TCP 对端，不能安全猜测实际客户端。"
-        for choice in "${!candidates[@]}"; do
-            printf '  %d. %s\n' "$((choice + 1))" "${candidates[$choice]}"
-        done
-        read -r -p "选择要应用的对端编号（直接回车跳过）: " choice
-        if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#candidates[@]})); then
-            target="${candidates[$((choice - 1))]}"
-            read -r -p "总速率 Mbps [1000]: " rate
-            add_rule "${target}/32" "${rate:-1000}"
-        fi
-        return
-    fi
-
-    note "未检测到可安全自动使用的远端地址。请让客户端先建立 TCP 连接后重试，或手工填写一次。"
-    while true; do
-        read -r -p "现在添加目标 IPv4/CIDR（直接回车跳过）: " target
-        [ -n "$target" ] || break
-        read -r -p "总速率 Mbps [1000]: " rate
-        rate="${rate:-1000}"
-        add_rule "$target" "$rate"
-        read -r -p "继续添加规则？[y/N]: " answer
-        [[ "$answer" =~ ^[Yy]$ ]] || break
-    done
+    note "需要时执行：bash ${SCRIPT_DIR}/tcp-brutal-manager.sh add <远端IP>/32 1000"
+    note "该命令会自动从当前路由表识别网关和网卡，并创建开机恢复服务。"
 }
 
 run_online_install() {
@@ -320,11 +330,11 @@ run_online_install() {
     prepare_alpine_build_dependencies
     capture_live_rules
     installer="$(mktemp /tmp/tcp-brutal-online.XXXXXX)"
-    trap 'rm -f -- "$installer"' RETURN
     note "从 https://tcp.hy2.sh 下载并执行当前官方安装器。"
     curl -fsSL --retry 3 --connect-timeout 15 --max-time 180 https://tcp.hy2.sh/ -o "$installer"
     bash -n "$installer"
     bash "$installer"
+    rm -f -- "$installer"
     ensure_persistence_if_saved_rules
     configure_routes
 }
@@ -350,6 +360,7 @@ usage() {
 用法：
   tcp-brutal-manager.sh online              在线执行 https://tcp.hy2.sh 官方安装器
   tcp-brutal-manager.sh offline             使用本仓库 tcp-brutal 完整快照安装
+  tcp-brutal-manager.sh manage              管理本机已安装的模块、规则和持久化服务
   tcp-brutal-manager.sh add IP[/CIDR] Mbps  添加即时规则并设置开机恢复
   tcp-brutal-manager.sh del IP[/CIDR]       删除即时及持久化规则
   tcp-brutal-manager.sh list                查看本机地址、规则与 proto 233 路由
@@ -361,6 +372,7 @@ main() {
     case "$command" in
         online) require_root; run_online_install ;;
         offline) require_root; run_offline_install ;;
+        manage) require_root; manage_interactively ;;
         add) require_root; [ "$#" -eq 3 ] || die "用法：add IP[/CIDR] Mbps"; add_rule "$2" "$3" ;;
         del) require_root; [ "$#" -eq 2 ] || die "用法：del IP[/CIDR]"; remove_rule "$2" ;;
         list) list_rules ;;

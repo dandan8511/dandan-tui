@@ -173,12 +173,12 @@ class ConfigSmokeTests(unittest.TestCase):
         for protocol in ("ShadowTLS", "Shadowsocks", "Trojan", "VMess + WS", "VLESS + WS + TLS", "H2 + Reality", "gRPC + Reality"):
             self.assertIn(protocol, actions[0]["description"])
 
-    def test_tcp_brutal_category_has_online_and_vendored_offline_actions(self):
+    def test_tcp_brutal_category_has_install_and_manage_actions(self):
         categories = {category["id"]: category["title"] for category in self.config["categories"]}
         self.assertEqual(categories.get("tcp_brutal"), "tcp-brutal")
         actions = [action for action in self.config["actions"] if action.get("category") == "tcp_brutal"]
-        self.assertEqual([action["id"] for action in actions], ["tcp_brutal_online", "tcp_brutal_offline"])
-        for action, mode in zip(actions, ("online", "offline")):
+        self.assertEqual([action["id"] for action in actions], ["tcp_brutal_online", "tcp_brutal_offline", "tcp_brutal_manage"])
+        for action, mode in zip(actions, ("online", "offline", "manage")):
             self.assertEqual(action["kind"], "local_script")
             self.assertEqual(action["path"], "scripts/tcp-brutal-manager.sh")
             self.assertEqual(action["args"], [mode])
@@ -192,9 +192,12 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertIn("ensure_persistence_if_saved_rules", source)
         self.assertIn('route" != "yes', source)
         self.assertIn("grep -x './dkms_source_tree/dkms.conf' > /dev/null", source)
-        self.assertIn("detect_ssh_peer", source)
-        self.assertIn("detect_active_tcp_peers", source)
-        self.assertIn("SSH_CONNECTION", source)
+        self.assertNotIn("SSH_CONNECTION", source)
+        self.assertIn("本次只安装模块，不会自动添加任何规则。", source)
+        self.assertIn("manage_interactively", source)
+        self.assertIn("本机 brutal 管理", actions[2]["title"])
+        self.assertIn('rm -f -- "$installer"', source)
+        self.assertNotIn("trap 'rm -f -- \"$installer\"' RETURN", source)
         self.assertIn("systemd", source)
         self.assertIn("openrc", source)
         self.assertIn("1000", source)
@@ -203,10 +206,34 @@ class ConfigSmokeTests(unittest.TestCase):
         self.assertTrue((ROOT / "scripts/tcp-brutal/UPSTREAM.md").is_file())
 
     def test_tcp_brutal_manager_validates_and_normalizes_ipv4_prefixes(self):
-        script = "source scripts/tcp-brutal-manager.sh; normalize_prefix 188.165.226.219; normalize_prefix 1.2.3.4/24; SSH_CONNECTION='198.51.100.9 123 192.0.2.1 22'; detect_ssh_peer; ! normalize_prefix 1.2.3.999/32; ! normalize_prefix 1.2.3.4/33; is_rate 1000; ! is_rate 0"
+        script = "source scripts/tcp-brutal-manager.sh; normalize_prefix 188.165.226.219; normalize_prefix 1.2.3.4/24; ! normalize_prefix 1.2.3.999/32; ! normalize_prefix 1.2.3.4/33; is_rate 1000; ! is_rate 0"
         result = subprocess.run(["bash", "-c", script], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.splitlines(), ["188.165.226.219/32", "1.2.3.4/24", "198.51.100.9"])
+        self.assertEqual(result.stdout.splitlines(), ["188.165.226.219/32", "1.2.3.4/24"])
+
+    def test_tcp_brutal_online_cleanup_keeps_installer_in_function_scope(self):
+        script = r'''
+source scripts/tcp-brutal-manager.sh
+capture_live_rules() { :; }
+ensure_persistence_if_saved_rules() { :; }
+configure_routes() { :; }
+curl() {
+    local output=""
+    while [ "$#" -gt 0 ]; do
+        if [ "$1" = "-o" ]; then
+            output="$2"
+            shift 2
+        else
+            shift
+        fi
+    done
+    printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$output"
+}
+run_online_install
+'''
+        result = subprocess.run(["bash", "-c", script], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("unbound variable", result.stderr)
 
     def test_launcher_caches_tcp_brutal_offline_runtime_assets(self):
         launcher = (ROOT / "launch.sh").read_text(encoding="utf-8")
